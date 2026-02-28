@@ -1,0 +1,431 @@
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:image/image.dart' as img;
+import 'face_recognition_service.dart';
+
+class FaceCameraScreen extends StatefulWidget {
+  final bool isRegistrationMode;
+
+  const FaceCameraScreen({
+    super.key,
+    this.isRegistrationMode = false,
+  });
+
+  @override
+  State<FaceCameraScreen> createState() => _FaceCameraScreenState();
+}
+
+class _FaceCameraScreenState extends State<FaceCameraScreen> {
+  CameraController? _controller;
+  late FaceDetector _faceDetector;
+
+  bool _isDetecting = false;
+  bool _faceDetected = false;
+  bool _isProcessing = false;
+
+  Face? _detectedFace;
+  CameraImage? _lastImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+    _initializeFaceDetection();
+    FaceRecognitionService.initialize();
+  }
+
+  void _initializeFaceDetection() {
+    _faceDetector = FaceDetector(
+      options: FaceDetectorOptions(
+        performanceMode: FaceDetectorMode.accurate,
+        enableContours: true,
+        enableClassification: true,
+      ),
+    );
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+      final frontCamera = cameras.firstWhere(
+            (camera) => camera.lensDirection == CameraLensDirection.front,
+      );
+
+      _controller = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _controller!.initialize();
+
+      _controller!.startImageStream((image) async {
+        if (_isDetecting || _isProcessing) return;
+        _isDetecting = true;
+
+        try {
+          final inputImage = _convertCameraImage(image);
+          if (inputImage == null) {
+            _isDetecting = false;
+            return;
+          }
+
+          final faces = await _faceDetector.processImage(inputImage);
+          _lastImage = image;
+
+          setState(() {
+            _faceDetected = faces.isNotEmpty;
+            _detectedFace = faces.isNotEmpty ? faces.first : null;
+          });
+        } catch (e) {
+          print("[Camera] Erreur détection: $e");
+        }
+
+        _isDetecting = false;
+      });
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("[Camera] Erreur initialisation: $e");
+    }
+  }
+
+  InputImage? _convertCameraImage(CameraImage image) {
+    try {
+      final WriteBuffer allBytes = WriteBuffer();
+      for (Plane plane in image.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+
+      final bytes = allBytes.done().buffer.asUint8List();
+
+      return InputImage.fromBytes(
+        bytes: bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: InputImageRotation.rotation270deg,
+          format: InputImageFormat.yuv420,
+          bytesPerRow: image.planes.first.bytesPerRow,
+        ),
+      );
+    } catch (e) {
+      print("[Camera] Erreur conversion: $e");
+      return null;
+    }
+  }
+
+  img.Image? _convertToImgImage(CameraImage image) {
+    try {
+      final width = image.width;
+      final height = image.height;
+
+      // VERSION COMPATIBLE image 3.3.0
+      final imgImage = img.Image(width, height);
+
+      final uvRowStride = image.planes[1].bytesPerRow;
+      final uvPixelStride = image.planes[1].bytesPerPixel ?? 1;
+
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+          final uvIndex =
+              uvPixelStride * (x ~/ 2) + uvRowStride * (y ~/ 2);
+          final index = y * width + x;
+
+          final yp = image.planes[0].bytes[index];
+          final up = image.planes[1].bytes[uvIndex];
+          final vp = image.planes[2].bytes[uvIndex];
+
+          int r = (yp + vp * 1436 / 1024 - 179)
+              .round()
+              .clamp(0, 255);
+          int g = (yp -
+              up * 46549 / 131072 +
+              44 -
+              vp * 93604 / 131072 +
+              91)
+              .round()
+              .clamp(0, 255);
+          int b = (yp + up * 1814 / 1024 - 227)
+              .round()
+              .clamp(0, 255);
+
+          imgImage.setPixel(x, y, img.getColor(r, g, b));
+        }
+      }
+
+      return imgImage;
+    } catch (e) {
+      print("[Camera] Erreur conversion image: $e");
+      return null;
+    }
+  }
+
+  Future<void> _captureFace() async {
+    if (_detectedFace == null || _lastImage == null || _isProcessing) {
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final fullImage = _convertToImgImage(_lastImage!);
+      if (fullImage == null) {
+        _showError("Erreur de conversion d'image");
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      final box = _detectedFace!.boundingBox;
+      final x = box.left.toInt().clamp(0, fullImage.width - 1);
+      final y = box.top.toInt().clamp(0, fullImage.height - 1);
+      final w = box.width.toInt().clamp(1, fullImage.width - x);
+      final h = box.height.toInt().clamp(1, fullImage.height - y);
+
+      final faceImage = img.copyCrop(fullImage, x, y, w, h);
+
+      final embedding = FaceRecognitionService.extractEmbedding(faceImage);
+
+      if (embedding == null) {
+        _showError("Impossible d'extraire les caractéristiques");
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      if (widget.isRegistrationMode) {
+        await _showNameDialog(embedding);
+      } else {
+        final result = await FaceRecognitionService.recognizeFace(embedding);
+
+        if (result != null) {
+          _showRecognitionResult(result);
+        } else {
+          _showError("Visage inconnu");
+        }
+      }
+    } catch (e) {
+      print("[Camera] Erreur capture: $e");
+      _showError("Erreur: $e");
+    }
+
+    setState(() => _isProcessing = false);
+  }
+
+  Future<void> _showNameDialog(List<double> embedding) async {
+    final nameController = TextEditingController();
+    final relationController = TextEditingController();
+    final phoneController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Enregistrer ce visage"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: "Nom du proche",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: relationController,
+                decoration: const InputDecoration(
+                  labelText: "Relation",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.family_restroom),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(
+                  labelText: "Téléphone",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.phone),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.trim().isEmpty) {
+                return;
+              }
+
+              final success = await FaceRecognitionService.saveFace(
+                name: nameController.text.trim(),
+                embedding: embedding,
+                relation: relationController.text.trim(),
+                phoneNumber: phoneController.text.trim(),
+              );
+
+              Navigator.pop(ctx, success);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4A90E2),
+            ),
+            child: const Text("Enregistrer",
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Visage enregistré"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    }
+  }
+
+  void _showRecognitionResult(Map<String, dynamic> result) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Reconnu !"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              result['name'],
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2E5AAC),
+              ),
+            ),
+            if (result['relation'].isNotEmpty)
+              Text(result['relation']),
+            if (result['phoneNumber'].isNotEmpty)
+              Text(result['phoneNumber']),
+            Text("Confiance: ${(result['similarity'] * 100).toInt()}%"),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    _faceDetector.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(child: CameraPreview(_controller!)),
+
+          if (_faceDetected)
+            Positioned(
+              top: 100,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    "Visage détecté",
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            top: 40,
+            left: 20,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: _faceDetected && !_isProcessing ? _captureFace : null,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _faceDetected && !_isProcessing
+                        ? const Color(0xFF4A90E2)
+                        : Colors.grey,
+                    border: Border.all(color: Colors.white, width: 4),
+                  ),
+                  child: _isProcessing
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Icon(
+                    widget.isRegistrationMode
+                        ? Icons.person_add
+                        : Icons.face,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

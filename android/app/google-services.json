@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "876804850193",
+    "project_id": "alzhecare-8c4ec",
+    "storage_bucket": "alzhecare-8c4ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876804850193:android:9dcf9cbb376e466aab67b0",
+        "android_client_info": {
+          "package_name": "com.example.alzhecare"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "876804850193-h86sspc5ao2rf3m5ie4sch89s0a2a8dn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.alzhecare",
+            "certificate_hash": "1253b43b7e76930243928f99ec644785b095ac97"
+          }
+        },
+        {
+          "client_id": "876804850193-cfeud6fpjej9p9rtuocs4dp1b5mg69v6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBL3MMAuPRHsQydfmbHlVSiEct2knx5ghA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "876804850193-cfeud6fpjej9p9rtuocs4dp1b5mg69v6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
