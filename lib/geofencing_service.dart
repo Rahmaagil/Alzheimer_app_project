@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+import 'fcm_service.dart';
 import 'notification_service.dart';
 
 class GeofencingService {
@@ -16,7 +18,7 @@ class GeofencingService {
       _callbackDispatcher,
       isInDebugMode: true,
     );
-    print("[GeofencingService] Service initialisé");
+    print("[GeofencingService] Service initialise");
   }
 
   /// DÉMARRER TRACKING
@@ -30,13 +32,13 @@ class GeofencingService {
       ),
     );
 
-    print("[GeofencingService] Tracking démarré ($intervalMinutes min)");
+    print("[GeofencingService] Tracking demarre ($intervalMinutes min)");
   }
 
   /// STOP TRACKING
   static Future<void> stopTracking() async {
     await Workmanager().cancelAll();
-    print("[GeofencingService] Tracking arrêté");
+    print("[GeofencingService] Tracking arrete");
   }
 
   /// TEST MANUEL
@@ -70,14 +72,14 @@ Future<void> _checkGeofenceForCurrentUser() async {
   final role = prefs.getString('user_role');
 
   if (uid == null || role != 'patient') {
-    print("[Geofencing] Aucun patient connecté");
+    print("[Geofencing] Aucun patient connecte");
     return;
   }
 
   /// 1️⃣ Vérifier si GPS activé
   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
   if (!serviceEnabled) {
-    print("[Geofencing] GPS désactivé");
+    print("[Geofencing] GPS desactive");
     return;
   }
 
@@ -90,7 +92,7 @@ Future<void> _checkGeofenceForCurrentUser() async {
 
   if (permission == LocationPermission.denied ||
       permission == LocationPermission.deniedForever) {
-    print("[Geofencing] Permission refusée");
+    print("[Geofencing] Permission refusee");
     return;
   }
 
@@ -99,7 +101,7 @@ Future<void> _checkGeofenceForCurrentUser() async {
 
   try {
     position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.medium, // Batterie optimisée
+      desiredAccuracy: LocationAccuracy.medium,
       timeLimit: const Duration(seconds: 15),
     );
   } catch (e) {
@@ -147,7 +149,7 @@ Future<void> _checkGeofence(String uid, Position currentPosition) async {
 
     final homeLocation = data['homeLocation'];
     if (homeLocation == null) {
-      print("[Geofencing] Domicile non configuré");
+      print("[Geofencing] Domicile non configure");
       return;
     }
 
@@ -179,7 +181,7 @@ Future<void> _checkGeofence(String uid, Position currentPosition) async {
     }
 
   } catch (e) {
-    print("[Geofencing] Erreur vérification: $e");
+    print("[Geofencing] Erreur verification: $e");
   }
 }
 
@@ -201,12 +203,11 @@ Future<void> _createAlert(String uid, Position position, double distance) async 
       if (timestamp != null) {
         final diff = DateTime.now().difference(timestamp.toDate());
         if (diff.inMinutes < 30) {
-          print("[Geofencing] Alerte récente existante");
+          print("[Geofencing] Alerte recente existante");
           return;
         }
       }
     }
-
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -223,14 +224,27 @@ Future<void> _createAlert(String uid, Position position, double distance) async 
       'createdBy': 'geofencing',
     });
 
+    print("[Geofencing] ALERTE CREEE");
 
-    print("[Geofencing] ALERTE CRÉÉE");
-
+    // Notification locale au patient
     await NotificationService.showGeofenceAlert(
       distance: distance.toInt(),
     );
 
+    // Notification push au suiveur
+    await FCMService.sendNotificationToCaregiver(
+      patientUid: uid,
+      title: 'Alerte de zone',
+      body: 'Le patient est sorti de sa zone de securite (${distance.toInt()}m)',
+      data: {
+        'type': 'geofence',
+        'distance': distance.toInt(),
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      },
+    );
+
   } catch (e) {
-    print("[Geofencing] Erreur création alerte: $e");
+    print("[Geofencing] Erreur creation alerte: $e");
   }
 }

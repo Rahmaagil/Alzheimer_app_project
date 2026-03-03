@@ -24,7 +24,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Email de réinitialisation envoyé. Vérifiez votre boîte mail.")),
       );
-      // Optionnel : revenir à l'écran de connexion après succès
+
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       String message;

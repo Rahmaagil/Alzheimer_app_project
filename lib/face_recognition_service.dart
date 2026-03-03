@@ -15,18 +15,18 @@ class FaceRecognitionService {
     if (_isInitialized) return;
 
     try {
-      print("[FaceRecognition] Chargement du modèle...");
+      print("[FaceRecognition] Chargement du modele...");
       _interpreter = await Interpreter.fromAsset('assets/models/mobilefacenet.tflite');
       _isInitialized = true;
-      print("[FaceRecognition] Modèle chargé avec succès");
+      print("[FaceRecognition] Modele charge avec succes");
     } catch (e) {
-      print("[FaceRecognition] Erreur chargement modèle: $e");
+      print("[FaceRecognition] Erreur chargement modele: $e");
     }
   }
 
   static List<double>? extractEmbedding(img.Image face) {
     if (_interpreter == null) {
-      print("[FaceRecognition] Modèle non initialisé");
+      print("[FaceRecognition] Modele non initialise");
       return null;
     }
 
@@ -41,9 +41,11 @@ class FaceRecognitionService {
             112,
                 (x) {
               final pixel = resized.getPixel(x, y);
-              final red = pixel.toInt();
-              final green = pixel.toInt();
-              final blue = pixel.toInt();
+
+              // CORRIGÉ : Extraction RGB compatible image 3.3.0
+              final red = pixel.toInt() & 0xFF;
+              final green = (pixel.toInt() >> 8) & 0xFF;
+              final blue = (pixel.toInt() >> 16) & 0xFF;
 
               final r = (red / 255.0 - 0.5) / 0.5;
               final g = (green / 255.0 - 0.5) / 0.5;
@@ -105,7 +107,7 @@ class FaceRecognitionService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      print("[FaceRecognition] Visage enregistré: $name");
+      print("[FaceRecognition] Visage enregistre: $name");
       return true;
 
     } catch (e) {
@@ -126,7 +128,7 @@ class FaceRecognitionService {
           .get();
 
       if (snapshot.docs.isEmpty) {
-        print("[FaceRecognition] Aucun proche enregistré");
+        print("[FaceRecognition] Aucun proche enregistre");
         return null;
       }
 
@@ -190,7 +192,7 @@ class FaceRecognitionService {
       }).toList();
 
     } catch (e) {
-      print("[FaceRecognition] Erreur récupération: $e");
+      print("[FaceRecognition] Erreur recuperation: $e");
       return [];
     }
   }
@@ -207,7 +209,7 @@ class FaceRecognitionService {
           .doc(id)
           .delete();
 
-      print("[FaceRecognition] Proche supprimé: $id");
+      print("[FaceRecognition] Proche supprime: $id");
       return true;
 
     } catch (e) {

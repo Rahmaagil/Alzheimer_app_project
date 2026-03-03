@@ -4,7 +4,7 @@ import 'package:alzhecare/sign_up_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'geofencing_service.dart';
-import 'notification_service.dart';
+import 'fcm_service.dart';
 
 
 
@@ -12,12 +12,14 @@ void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await GeofencingService.initialize();
-  await NotificationService.initialize();
+  await FCMService.initialize();
   await FaceRecognitionService.initialize();
 
 
   runApp(const MyApp());
+
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

@@ -80,7 +80,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             _detectedFace = faces.isNotEmpty ? faces.first : null;
           });
         } catch (e) {
-          print("[Camera] Erreur détection: $e");
+          print("[Camera] Erreur detection: $e");
         }
 
         _isDetecting = false;
@@ -121,7 +121,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
       final width = image.width;
       final height = image.height;
 
-      // VERSION COMPATIBLE image 3.3.0
+      // CORRIGÉ : Syntaxe image 3.3.0
       final imgImage = img.Image(width, height);
 
       final uvRowStride = image.planes[1].bytesPerRow;
@@ -129,29 +129,21 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
 
       for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-          final uvIndex =
-              uvPixelStride * (x ~/ 2) + uvRowStride * (y ~/ 2);
+          final uvIndex = uvPixelStride * (x ~/ 2) + uvRowStride * (y ~/ 2);
           final index = y * width + x;
 
           final yp = image.planes[0].bytes[index];
           final up = image.planes[1].bytes[uvIndex];
           final vp = image.planes[2].bytes[uvIndex];
 
-          int r = (yp + vp * 1436 / 1024 - 179)
+          int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
+          int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91)
               .round()
               .clamp(0, 255);
-          int g = (yp -
-              up * 46549 / 131072 +
-              44 -
-              vp * 93604 / 131072 +
-              91)
-              .round()
-              .clamp(0, 255);
-          int b = (yp + up * 1814 / 1024 - 227)
-              .round()
-              .clamp(0, 255);
+          int b = (yp + up * 1814 / 1024 - 227).round().clamp(0, 255);
 
-          imgImage.setPixel(x, y, img.getColor(r, g, b));
+          // CORRIGÉ : setPixelRgba pour image 3.3.0
+          imgImage.setPixelRgba(x, y, r, g, b, 255);
         }
       }
 
@@ -163,7 +155,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
   }
 
   Future<void> _captureFace() async {
-    if (_detectedFace == null || _lastImage == null || _isProcessing) {
+    if (_lastImage == null || _isProcessing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Veuillez attendre la detection du visage"),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
@@ -177,18 +175,27 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         return;
       }
 
-      final box = _detectedFace!.boundingBox;
-      final x = box.left.toInt().clamp(0, fullImage.width - 1);
-      final y = box.top.toInt().clamp(0, fullImage.height - 1);
-      final w = box.width.toInt().clamp(1, fullImage.width - x);
-      final h = box.height.toInt().clamp(1, fullImage.height - y);
+      // Si aucun visage détecté, utiliser l'image complète
+      img.Image faceImage;
 
-      final faceImage = img.copyCrop(fullImage, x, y, w, h);
+      if (_detectedFace != null) {
+        final box = _detectedFace!.boundingBox;
+        final x = box.left.toInt().clamp(0, fullImage.width - 1);
+        final y = box.top.toInt().clamp(0, fullImage.height - 1);
+        final w = box.width.toInt().clamp(1, fullImage.width - x);
+        final h = box.height.toInt().clamp(1, fullImage.height - y);
+
+        // CORRIGÉ : Syntaxe image 3.3.0
+        faceImage = img.copyCrop(fullImage, x, y, w, h);
+      } else {
+        // Utiliser image complète si pas de visage détecté
+        faceImage = fullImage;
+      }
 
       final embedding = FaceRecognitionService.extractEmbedding(faceImage);
 
       if (embedding == null) {
-        _showError("Impossible d'extraire les caractéristiques");
+        _showError("Impossible d'extraire les caracteristiques");
         setState(() => _isProcessing = false);
         return;
       }
@@ -249,7 +256,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
               TextField(
                 controller: phoneController,
                 decoration: const InputDecoration(
-                  labelText: "Téléphone",
+                  labelText: "Telephone",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.phone),
                 ),
@@ -291,7 +298,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Visage enregistré"),
+          content: Text("Visage enregistre"),
           backgroundColor: Colors.green,
         ),
       );
@@ -317,9 +324,9 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                 color: Color(0xFF2E5AAC),
               ),
             ),
-            if (result['relation'].isNotEmpty)
+            if (result['relation'].toString().isNotEmpty)
               Text(result['relation']),
-            if (result['phoneNumber'].isNotEmpty)
+            if (result['phoneNumber'].toString().isNotEmpty)
               Text(result['phoneNumber']),
             Text("Confiance: ${(result['similarity'] * 100).toInt()}%"),
           ],
@@ -378,7 +385,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
-                    "Visage détecté",
+                    "Visage detecte",
                     style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -400,19 +407,22 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             right: 0,
             child: Center(
               child: GestureDetector(
-                onTap: _faceDetected && !_isProcessing ? _captureFace : null,
+                onTap: !_isProcessing ? _captureFace : null,
                 child: Container(
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _faceDetected && !_isProcessing
+                    color: !_isProcessing
                         ? const Color(0xFF4A90E2)
                         : Colors.grey,
                     border: Border.all(color: Colors.white, width: 4),
                   ),
                   child: _isProcessing
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  )
                       : Icon(
                     widget.isRegistrationMode
                         ? Icons.person_add

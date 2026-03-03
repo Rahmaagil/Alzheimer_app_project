@@ -29,38 +29,54 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
     setState(() => _isLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // Récupérer le document du suiveur pour trouver le patient lié
+      // Récupérer le document du suiveur
       final suiveurDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
-      String? patientUid = suiveurDoc.data()?['linkedPatient'];
-
-      // Si pas de patient lié, chercher le premier patient
-      if (patientUid == null) {
-        final p = await FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'patient')
-            .limit(1)
-            .get();
-        if (p.docs.isNotEmpty) patientUid = p.docs.first.id;
-      }
+      // Récupérer l'UID du patient lié
+      final patientUid = suiveurDoc.data()?['linkedPatient'] as String?;
 
       if (patientUid == null) {
+        // Pas de patient lié
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Aucun patient lié à ce compte"),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
         setState(() => _isLoading = false);
         return;
       }
 
       _patientUid = patientUid;
 
-      // Charger les paramètres du PATIENT
+      // Charger les paramètres du patient lié
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(patientUid)
           .get();
+
+      if (!doc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Patient introuvable"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final data = doc.data();
       if (data != null) {
@@ -78,19 +94,22 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _saveSettings() async {
     if (_patientUid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun patient trouvé')),
+        const SnackBar(content: Text('Aucun patient lié')),
       );
       return;
     }
@@ -105,12 +124,13 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
             ? {'latitude': _homeLat, 'longitude': _homeLng}
             : null,
         'safeZoneRadius': _safeZoneRadius,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Paramètres enregistrés ✓'),
+            content: Text('Paramètres enregistrés'),
             backgroundColor: Color(0xFF4CAF50),
           ),
         );
@@ -118,7 +138,10 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -147,7 +170,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Adresse trouvée ✓'),
+              content: Text('Adresse trouvée'),
               backgroundColor: Color(0xFF4CAF50),
             ),
           );
@@ -199,8 +222,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
           ),
         ),
         child: _isLoading
-            ? const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
             : SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -249,9 +271,10 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                           const Text(
                             'Adresse enregistrée :',
                             style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Container(
@@ -264,8 +287,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.location_on,
-                                    color: Color(0xFF2EC7F0), size: 24),
+                                const Icon(Icons.location_on, color: Color(0xFF2EC7F0), size: 24),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
@@ -287,8 +309,6 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                           decoration: InputDecoration(
                             labelText: 'Entrer l\'adresse',
                             labelStyle: const TextStyle(fontSize: 17),
-                            hintText: 'Adreese du domicile',
-                            hintStyle: const TextStyle(fontSize: 16),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -298,8 +318,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                               horizontal: 18,
                               vertical: 16,
                             ),
-                            prefixIcon: const Icon(Icons.edit_location,
-                                color: Color(0xFF4A90E2), size: 26),
+                            prefixIcon: const Icon(Icons.edit_location, color: Color(0xFF4A90E2), size: 26),
                           ),
                           style: const TextStyle(fontSize: 17),
                           onFieldSubmitted: _setHomeAddress,
@@ -307,10 +326,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                         const SizedBox(height: 14),
                         Text(
                           'Utilisée pour "Trouver mon domicile" et comme centre de la zone',
-                          style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey[700],
-                              height: 1.4),
+                          style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.4),
                         ),
                       ],
                     ),
@@ -329,8 +345,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
                               'Rayon actuel',
@@ -341,14 +356,10 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF6EC6FF),
-                                    Color(0xFF4A90E2)
-                                  ],
+                                  colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                               ),
@@ -367,14 +378,11 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                         SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             activeTrackColor: const Color(0xFF4A90E2),
-                            inactiveTrackColor:
-                            const Color(0xFF4A90E2).withOpacity(0.3),
+                            inactiveTrackColor: const Color(0xFF4A90E2).withOpacity(0.3),
                             thumbColor: const Color(0xFF4A90E2),
-                            overlayColor:
-                            const Color(0xFF4A90E2).withOpacity(0.2),
+                            overlayColor: const Color(0xFF4A90E2).withOpacity(0.2),
                             trackHeight: 6,
-                            thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 14),
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
                           ),
                           child: Slider(
                             value: _safeZoneRadius.toDouble(),
@@ -383,39 +391,22 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                             divisions: 19,
                             label: '$_safeZoneRadius m',
                             onChanged: (val) {
-                              setState(
-                                      () => _safeZoneRadius = val.round());
+                              setState(() => _safeZoneRadius = val.round());
                             },
                           ),
                         ),
                         const SizedBox(height: 8),
                         Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              '50 m',
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey[600]),
-                            ),
-                            Text(
-                              '1000 m',
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey[600]),
-                            ),
+                            Text('50 m', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.grey[600])),
+                            Text('1000 m', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.grey[600])),
                           ],
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Ce cercle sera visible sur la carte',
-                          style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[700],
-                              height: 1.4),
+                          style: TextStyle(fontSize: 16, color: Colors.grey[700], height: 1.4),
                         ),
                       ],
                     ),
@@ -430,8 +421,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                     child: ElevatedButton(
                       onPressed: _saveSettings,
                       style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                         padding: EdgeInsets.zero,
                         backgroundColor: Colors.transparent,
                         elevation: 0,
@@ -439,13 +429,9 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                       child: Ink(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [
-                              Color(0xFF6EC6FF),
-                              Color(0xFF4A90E2)
-                            ],
+                            colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
                           ),
-                          borderRadius:
-                          BorderRadius.all(Radius.circular(30)),
+                          borderRadius: BorderRadius.all(Radius.circular(30)),
                         ),
                         child: const Center(
                           child: Row(

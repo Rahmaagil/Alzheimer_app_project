@@ -1,12 +1,13 @@
-
 import 'package:alzhecare/caregiver_home_screen.dart';
 import 'package:alzhecare/patient_home_screen.dart';
+import 'package:alzhecare/patient_setup_screen.dart';
 import 'package:alzhecare/reset_password_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:alzhecare/sign_up_screen.dart';
-
+import 'geofencing_service.dart';
+import 'user_session_manager.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -17,90 +18,129 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   bool hidePassword = true;
+  bool _isLoading = false;
+
+  final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   Future<void> signIn() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
     try {
-      UserCredential userCredential =
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-
       if (!userCredential.user!.emailVerified) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Veuillez vérifier votre email avant de vous connecter."),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Veuillez verifier votre email avant de vous connecter."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        await FirebaseAuth.instance.signOut();
+        setState(() => _isLoading = false);
         return;
       }
 
-      // Récupérer le rôle depuis Firestore
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
           .get();
 
       if (userDoc.exists) {
-        String role = userDoc['role'];
-        // Ici, vous pouvez naviguer vers différents écrans selon le rôle
-        // Par exemple :
+        String role = userDoc['role'] as String? ?? 'patient';
 
-         if (role == 'patient') {
-           Navigator.push(context, MaterialPageRoute(builder: (_) => PatientHomeScreen()));
-        } else {
-         Navigator.push(context, MaterialPageRoute(builder: (_) =>CaregiverHomeScreen() ));
-         }
-        // Pour l'exemple, on affiche un message et on reste sur la page (remplacez par votre logique)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Connexion réussie en tant que $role")),
+
+        await UserSessionManager.saveSession(
+          userCredential.user!.uid ,
+          role,
         );
+
+        if (role == 'patient') {
+          await GeofencingService.startTracking(intervalMinutes: 15);
+          print("[SignIn] Geofencing demarre pour le patient");
+        }
+
+        if (mounted) {
+          if (role == 'patient') {
+            // CORRIGE : Cast du data
+            final data = userDoc.data() as Map<String, dynamic>?;
+            final setupCompleted = data?['setupCompleted'] as bool? ?? false;
+
+            if (setupCompleted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const PatientHomeScreen()),
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const PatientSetupScreen()),
+              );
+            }
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const CaregiverHomeScreen()),
+            );
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Connexion reussie en tant que $role"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Utilisateur non trouvé dans la base de données.")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Utilisateur non trouve dans la base de donnees."),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
-      String message;
-      if (e.code == 'user-not-found') {
-        message = "Aucun utilisateur trouvé pour cet email";
-      } else if (e.code == 'wrong-password') {
-        message = "Mot de passe incorrect";
-      } else if (e.code == 'invalid-email') {
-        message = "Email invalide";
-      } else {
-        message = "Erreur : ${e.message}";
+      String message = "Erreur de connexion";
+      switch (e.code) {
+        case 'user-not-found':
+          message = "Aucun compte associe a cet email";
+          break;
+        case 'wrong-password':
+          message = "Mot de passe incorrect";
+          break;
+        case 'invalid-email':
+          message = "Email invalide";
+          break;
+        case 'user-disabled':
+          message = "Compte desactive";
+          break;
+        case 'invalid-credential':
+          message = "Email ou mot de passe incorrect";
+          break;
+        default:
+          message = e.message ?? "Erreur inconnue";
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  Future<void> resetPassword() async {
-    if (_emailController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Veuillez entrer votre email pour réinitialiser le mot de passe.")),
-      );
-      return;
-    }
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text.trim());
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email de réinitialisation envoyé.")),
-      );
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : ${e.message}")),
-      );
-    }
-  }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -112,220 +152,197 @@ class _SignInScreenState extends State<SignInScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFEAF2FF),
-              Color(0xFFF6FBFF),
-            ],
+            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
           ),
         ),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 40),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // LOGO
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF6EC6FF),
-                        Color(0xFF4A90E2)
-                      ],
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                      boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 20)],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 20,
-                      ),
-                    ],
+                    child: const Icon(Icons.psychology, color: Colors.white, size: 42),
                   ),
-                  child: const Icon(
-                    Icons.psychology,
-                    color: Colors.white,
-                    size: 42,
+                  const SizedBox(height: 16),
+                  const Text(
+                    "AlzheCare",
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
                   ),
-                ),
-
-                const SizedBox(height: 16),
-
-                const Text(
-                  "AlzheCare",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5AAC),
+                  const SizedBox(height: 6),
+                  const Text(
+                    "Une assistance intelligente au quotidien",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.black54),
                   ),
-                ),
-
-                const SizedBox(height: 6),
-
-                const Text(
-                  "Une assistance intelligente au quotidien",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // CARD
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(26),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 20,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Se connecter",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // EMAIL
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          hintText: "votre@gmail.com",
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          filled: true,
-                          fillColor: const Color(0xFFF3F6FF),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // PASSWORD
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: hidePassword,
-                        decoration: InputDecoration(
-                          hintText: "Mot de passe",
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              hidePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                hidePassword = !hidePassword;
-                              });
-                            },
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFF3F6FF),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      // FORGOT PASSWORD
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed:(){
-                            Navigator.push(context, MaterialPageRoute(builder: (_)=>ResetPasswordScreen()));
+                  const SizedBox(height: 30),
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(26),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20)],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Se connecter", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) {
+                              return "Entrez votre email";
+                            }
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(val.trim())) {
+                              return "Email invalide";
+                            }
+                            return null;
                           },
-                          child: const Text(
-                            "Mot de passe oublié ?",
-                            style: TextStyle(color: Color(0xFF2E5AAC)),
+                          decoration: InputDecoration(
+                            hintText: "votre@gmail.com",
+                            prefixIcon: const Icon(Icons.email_outlined),
+                            filled: true,
+                            fillColor: const Color(0xFFF3F6FF),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: Colors.red, width: 1),
+                            ),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // SIGN IN BUTTON
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: signIn,
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: hidePassword,
+                          validator: (val) {
+                            if (val == null || val.isEmpty) {
+                              return "Entrez votre mot de passe";
+                            }
+                            return null;
+                          },
+                          decoration: InputDecoration(
+                            hintText: "Mot de passe",
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(hidePassword ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setState(() => hidePassword = !hidePassword),
                             ),
-                            padding: EdgeInsets.zero,
-                            backgroundColor: Colors.transparent,
-                            elevation: 0,
+                            filled: true,
+                            fillColor: const Color(0xFFF3F6FF),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: Colors.red, width: 1),
+                            ),
                           ),
-                          child: Ink(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Color(0xFF7FB3FF),
-                                  Color(0xFF2EC7F0),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.all(Radius.circular(30)),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+                              );
+                            },
+                            child: const Text(
+                              "Mot de passe oublie ?",
+                              style: TextStyle(color: Color(0xFF2E5AAC)),
                             ),
-                            child: const Center(
-                              child: Text(
-                                "Se connecter →",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : signIn,
+                            style: ElevatedButton.styleFrom(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              padding: EdgeInsets.zero,
+                              backgroundColor: Colors.transparent,
+                              disabledBackgroundColor: Colors.grey,
+                              elevation: 0,
+                            ),
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: _isLoading
+                                    ? null
+                                    : const LinearGradient(colors: [Color(0xFF7FB3FF), Color(0xFF2EC7F0)]),
+                                color: _isLoading ? Colors.grey : null,
+                                borderRadius: const BorderRadius.all(Radius.circular(30)),
+                              ),
+                              child: Center(
+                                child: _isLoading
+                                    ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                                    : const Text(
+                                  "Se connecter",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Center(
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                            );
-                          },
-                          child: const Text(
-                            "Pas de compte ? Créer un compte",
-                            style: TextStyle(color: Color(0xFF2E5AAC)),
+                        const SizedBox(height: 20),
+                        Center(
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                              );
+                            },
+                            child: const Text(
+                              "Pas de compte ? Creer un compte",
+                              style: TextStyle(color: Color(0xFF2E5AAC)),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 }

@@ -6,6 +6,8 @@ import 'caregiver_dashboard_tab.dart';
 import 'caregiver_map_tab.dart';
 import 'caregiver_profile_tab.dart';
 import 'caregiver_chatbot_screen.dart';
+import 'fcm_service.dart';
+import 'notification_listener_service.dart';
 
 class CaregiverHomeScreen extends StatefulWidget {
   const CaregiverHomeScreen({super.key});
@@ -21,6 +23,20 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   void initState() {
     super.initState();
     _listenAlerts();
+    _initializeFCM();
+  }
+
+  Future<void> _initializeFCM() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Sauvegarder token FCM
+      await FCMService.saveTokenForUser(user.uid);
+
+      // AJOUTER : Démarrer l'écoute des notifications
+      await NotificationListenerService.startListening(user.uid);
+
+      print("[CaregiverHome] Token FCM et listener demarres");
+    }
   }
 
   Future<void> _listenAlerts() async {
@@ -58,6 +74,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     CaregiverAlertsTab(),
     CaregiverProfileTab(),
   ];
+
+  @override
+  void dispose() {
+    // AJOUTER : Arrêter l'écoute
+    NotificationListenerService.stopListening();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,45 +1,30 @@
-// user_session_manager.dart
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-/// Gère la session utilisateur pour les tâches en arrière-plan
-/// Nécessaire car FirebaseAuth ne fonctionne pas toujours en background
 class UserSessionManager {
 
-  static const String _keyUid = 'user_uid';
-  static const String _keyRole = 'user_role';
-
-  /// Sauvegarder la session au login
-  static Future<void> saveSession(User user, String role) async {
+  // Sauvegarder la session
+  static Future<void> saveSession(String uid, String role) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyUid, user.uid);
-    await prefs.setString(_keyRole, role);
-    print("Session sauvegardée: ${user.uid}");
+    await prefs.setString('user_uid', uid);
+    await prefs.setString('user_role', role);
   }
 
-  /// Récupérer l'UID (fonctionne en background)
+  // Récupérer l'UID
   static Future<String?> getUid() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyUid);
+    return prefs.getString('user_uid');
   }
 
-  /// Récupérer le rôle
+  // Récupérer le rôle
   static Future<String?> getRole() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyRole);
+    return prefs.getString('user_role');
   }
 
-  /// Vérifier si l'utilisateur est patient
-  static Future<bool> isPatient() async {
-    final role = await getRole();
-    return role == 'patient';
-  }
-
-  /// Effacer la session au logout
+  // Effacer la session
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyUid);
-    await prefs.remove(_keyRole);
-    print("Session effacée");
+    await prefs.remove('user_uid');
+    await prefs.remove('user_role');
   }
 }

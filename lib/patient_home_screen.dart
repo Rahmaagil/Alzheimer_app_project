@@ -2,6 +2,7 @@ import 'package:alzhecare/lost_patient_screen.dart';
 import 'package:alzhecare/reminders_screen.dart';
 import 'package:alzhecare/profile_screen.dart';
 import 'package:alzhecare/find_home_screen.dart';
+import 'package:alzhecare/sign_in_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -101,7 +102,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
             child: const Text("Annuler"),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () {Navigator.push(context, MaterialPageRoute(builder: (_)=>SignInScreen()));},
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2E5AAC),
             ),
@@ -180,7 +181,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
 
               const SizedBox(height: 20),
 
-              /// AVATAR
+
               Container(
                 width: 110,
                 height: 110,

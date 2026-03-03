@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'patient_caregiver_link_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,23 +11,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _caregiverPhoneController = TextEditingController();
-  final _homeAddressController = TextEditingController();
-  final _treatmentController = TextEditingController();
-  final _allergiesController = TextEditingController();
-  final _doctorController = TextEditingController();
-
-  String _diseaseStage = "Léger";
+  Map<String, dynamic>? _profileData;
   bool _isLoading = true;
-
-  final List<String> _stages = [
-    "Léger",
-    "Modéré",
-    "Avancé",
-  ];
 
   @override
   void initState() {
@@ -34,64 +20,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
-  // ───────────── LOAD DATA ─────────────
   Future<void> _loadProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-    if (doc.exists) {
-      final data = doc.data();
-
-      _nameController.text = data?['name'] ?? '';
-      _phoneController.text = data?['phone'] ?? '';
-      _caregiverPhoneController.text = data?['caregiverPhone'] ?? '';
-      _homeAddressController.text = data?['homeAddress'] ?? ''; // Charger l'adresse domicile
-      _treatmentController.text = data?['treatment'] ?? '';
-      _allergiesController.text = data?['allergies'] ?? '';
-      _doctorController.text = data?['doctor'] ?? '';
-      _diseaseStage = data?['diseaseStage'] ?? "Léger";
+      if (doc.exists) {
+        setState(() {
+          _profileData = doc.data();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Erreur: $e");
+      setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
-  }
-
-  // ───────────── SAVE DATA ─────────────
-  Future<void> _saveProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .update({
-      'name': _nameController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'caregiverPhone': _caregiverPhoneController.text.trim(),
-      'homeAddress': _homeAddressController.text.trim(), // Sauvegarder l'adresse domicile
-      'treatment': _treatmentController.text.trim(),
-      'allergies': _allergiesController.text.trim(),
-      'doctor': _doctorController.text.trim(),
-      'diseaseStage': _diseaseStage,
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Profil mis à jour avec succès !")),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-
-    final user = FirebaseAuth.instance.currentUser;
-
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF4A90E2)),
+        ),
       );
     }
 
@@ -100,8 +57,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: const Color(0xFFEAF2FF),
         elevation: 0,
         title: const Text(
-          "Mon Profil",
-          style: TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 24),
+          "Mes Informations",
+          style: TextStyle(
+            color: Color(0xFF2E5AAC),
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
         centerTitle: true,
       ),
@@ -114,76 +75,195 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── SECTION PERSONNELLE ──
-                _buildSectionHeader("Informations personnelles", Icons.person),
-                const SizedBox(height: 15),
-                _buildTextField(_nameController, "Votre nom complet", Icons.account_circle),
-                const SizedBox(height: 15),
-                _buildTextField(null, "Votre email", Icons.email, enabled: false, hint: user?.email ?? "Non disponible"),
-                const SizedBox(height: 15),
-                _buildTextField(_phoneController, "Votre téléphone", Icons.phone, keyboardType: TextInputType.phone),
-                const SizedBox(height: 15),
-                _buildTextField(_caregiverPhoneController, "Téléphone de votre proche", Icons.phone_android, keyboardType: TextInputType.phone),
-                const SizedBox(height: 15),
-                _buildTextField(_homeAddressController, "Adresse de votre domicile", Icons.home, maxLines: 2),
+          child: RefreshIndicator(
+            onRefresh: _loadProfile,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
 
-                const SizedBox(height: 30),
-                const Divider(color: Color(0xFF2E5AAC), thickness: 1),
-
-                // ── SECTION MÉDICALE ──
-                const SizedBox(height: 20),
-                _buildSectionHeader("Informations médicales", Icons.local_hospital),
-                const SizedBox(height: 15),
-                _buildDropdownField(),
-                const SizedBox(height: 15),
-                _buildTextField(_treatmentController, "Votre traitement", Icons.medical_services),
-                const SizedBox(height: 15),
-                _buildTextField(_allergiesController, "Vos allergies", Icons.warning),
-                const SizedBox(height: 15),
-                _buildTextField(_doctorController, "Votre médecin référent", Icons.person_search),
-
-                const SizedBox(height: 40),
-
-                // ── BOUTON SAUVEGARDER ──
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                  // Photo de profil
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
                       ),
-                      padding: EdgeInsets.zero,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
-                    child: Ink(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                        ),
-                        borderRadius: BorderRadius.all(Radius.circular(30)),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          "Enregistrer les modifications",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                    child: const Icon(
+                      Icons.person,
+                      size: 60,
+                      color: Colors.white,
                     ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 20),
+
+                  // Nom
+                  Text(
+                    _profileData?['name'] ?? "Mon nom",
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2E5AAC),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Section: Qui suis-je ?
+                  _buildSectionTitle("Qui suis-je ?"),
+                  const SizedBox(height: 16),
+
+                  _buildInfoCard(
+                    icon: Icons.person,
+                    label: "Mon nom",
+                    value: _profileData?['name'] ?? "Non renseigné",
+                    color: const Color(0xFF4A90E2),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildInfoCard(
+                    icon: Icons.cake,
+                    label: "Mon âge",
+                    value: _profileData?['age'] != null
+                        ? "${_profileData!['age']} ans"
+                        : "Non renseigné",
+                    color: const Color(0xFF10B981),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildInfoCard(
+                    icon: Icons.home,
+                    label: "Mon domicile",
+                    value: _profileData?['homeAddress'] ?? "Non renseigné",
+                    color: const Color(0xFFFFB74D),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Section: Mes contacts
+                  _buildSectionTitle("Mes contacts"),
+                  const SizedBox(height: 16),
+
+                  _buildInfoCard(
+                    icon: Icons.phone,
+                    label: "Mon proche",
+                    value: _profileData?['caregiverPhone'] ?? "Non renseigné",
+                    color: const Color(0xFF10B981),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildInfoCard(
+                    icon: Icons.medical_services,
+                    label: "Mon médecin",
+                    value: _profileData?['doctor'] ?? "Non renseigné",
+                    color: const Color(0xFF4A90E2),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Section: Ma santé
+                  _buildSectionTitle("Ma santé"),
+                  const SizedBox(height: 16),
+
+                  _buildInfoCard(
+                    icon: Icons.warning,
+                    label: "Mes allergies",
+                    value: (_profileData?['allergies'] != null &&
+                        _profileData!['allergies'].toString().isNotEmpty)
+                        ? _profileData!['allergies']
+                        : "Aucune allergie",
+                    color: Colors.orange,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildInfoCard(
+                    icon: Icons.medication,
+                    label: "Mon traitement",
+                    value: (_profileData?['treatment'] != null &&
+                        _profileData!['treatment'].toString().isNotEmpty)
+                        ? _profileData!['treatment']
+                        : "Aucun traitement",
+                    color: const Color(0xFFFF6B6B),
+                  ),
+
+                  if (_profileData?['diabetes'] != null &&
+                      _profileData!['diabetes'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildInfoCard(
+                      icon: Icons.bloodtype,
+                      label: "Diabète",
+                      value: _profileData!['diabetes'],
+                      color: const Color(0xFF9C27B0),
+                    ),
+                  ],
+
+                  if (_profileData?['bloodPressure'] != null &&
+                      _profileData!['bloodPressure'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildInfoCard(
+                      icon: Icons.favorite,
+                      label: "Ma tension",
+                      value: _profileData!['bloodPressure'],
+                      color: const Color(0xFFE91E63),
+                    ),
+                  ],
+
+                  const SizedBox(height: 40),
+
+                  // Note pour le patient
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4A90E2).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF4A90E2),
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Color(0xFF4A90E2),
+                          size: 32,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            "Votre proche peut modifier ces informations si nécessaire",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[800],
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                ],
+              ),
             ),
           ),
         ),
@@ -191,15 +271,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
+  Widget _buildSectionTitle(String title) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF2E5AAC), size: 28),
-        const SizedBox(width: 10),
+        Container(
+          width: 4,
+          height: 24,
+          decoration: BoxDecoration(
+            color: const Color(0xFF4A90E2),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 12),
         Text(
           title,
           style: const TextStyle(
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: Color(0xFF2E5AAC),
           ),
@@ -208,68 +295,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController? controller, String label, IconData icon, {bool enabled = true, TextInputType keyboardType = TextInputType.text, int maxLines = 1, String? hint}) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF4A90E2)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF6EC6FF), width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF6EC6FF), width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF4A90E2), width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      style: const TextStyle(fontSize: 16),
-    );
-  }
+      child: Row(
+        children: [
+          // Icône
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
 
-  Widget _buildDropdownField() {
-    return DropdownButtonFormField<String>(
-      value: _diseaseStage,
-      items: _stages.map((stage) {
-        return DropdownMenuItem(
-          value: stage,
-          child: Text(stage, style: const TextStyle(fontSize: 16)),
-        );
-      }).toList(),
-      onChanged: (value) {
-        setState(() {
-          _diseaseStage = value!;
-        });
-      },
-      decoration: InputDecoration(
-        labelText: "Stade de la maladie",
-        prefixIcon: const Icon(Icons.accessibility, color: Color(0xFF4A90E2)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF6EC6FF), width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF6EC6FF), width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF4A90E2), width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          // Contenu
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2E5AAC),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
