@@ -23,8 +23,9 @@ class FallDetectionService {
   List<double>? _lastAccel;
   List<double>? _lastGyro;
 
-  bool isInitialized = false; // PUBLIC MAINTENANT
+  bool isInitialized = false;
   bool _isMonitoring = false;
+  bool isPaused = false; // NOUVEAU: Pause temporaire
 
   Function(bool isFall, double confidence)? onFallDetected;
 
@@ -37,7 +38,6 @@ class FallDetectionService {
       _scalerScale = List<double>.from(scalerData['scale']);
       isInitialized = true;
     } catch (e) {
-      debugPrint('[FallDetection] Erreur init: $e');
       rethrow;
     }
   }
@@ -47,6 +47,7 @@ class FallDetectionService {
 
     _isMonitoring = true;
     _sensorBuffer.clear();
+    isPaused = false;
 
     _accelSubscription = accelerometerEvents.listen((event) {
       _lastAccel = [event.x, event.y, event.z];
@@ -66,8 +67,18 @@ class FallDetectionService {
     _sensorBuffer.clear();
   }
 
+  // NOUVEAU: Pause temporaire
+  void pauseDetection() {
+    isPaused = true;
+  }
+
+  void resumeDetection() {
+    isPaused = false;
+    _sensorBuffer.clear(); // Vider buffer pour éviter anciennes données
+  }
+
   void _addSensorData() {
-    if (_lastAccel == null || _lastGyro == null) return;
+    if (_lastAccel == null || _lastGyro == null || isPaused) return; // MODIFIÉ
 
     final data = [..._lastAccel!, ..._lastGyro!, ..._lastAccel!];
     _sensorBuffer.add(data);
@@ -82,6 +93,8 @@ class FallDetectionService {
   }
 
   void _analyzeWindow() {
+    if (isPaused) return; // NOUVEAU: Ne pas analyser si en pause
+
     try {
       final window = _sensorBuffer.sublist(_sensorBuffer.length - WINDOW_SIZE);
       final features = _extractFeatures(window);
@@ -98,7 +111,7 @@ class FallDetectionService {
         onFallDetected?.call(true, probFall);
       }
     } catch (e) {
-      debugPrint('[FallDetection] Erreur analyse: $e');
+      // Ignorer erreur
     }
   }
 

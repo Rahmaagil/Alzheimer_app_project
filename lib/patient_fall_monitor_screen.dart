@@ -81,6 +81,9 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
 
     setState(() => _isProcessingFall = true);
 
+    // PAUSE DÉTECTION PENDANT TRAITEMENT
+    _fallService.pauseDetection();
+
     try {
       final result = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -108,12 +111,18 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
           ),
         );
       }
+
+      // ATTENDRE 5 SECONDES AVANT DE REPRENDRE
+      await Future.delayed(const Duration(seconds: 5));
+
     } catch (e) {
       // Erreur
     } finally {
       if (mounted) {
         setState(() => _isProcessingFall = false);
       }
+      // REPRENDRE DÉTECTION
+      _fallService.resumeDetection();
     }
   }
 
@@ -162,7 +171,7 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
           }
         }
       } catch (e) {
-        // Ignorer erreur GPS
+        // Ignorer
       }
 
       int sent = 0;
@@ -184,7 +193,7 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
           });
           sent++;
         } catch (e) {
-          // Ignorer erreur individuelle
+          // Ignorer
         }
       }
 
@@ -198,7 +207,7 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
         );
       }
     } catch (e) {
-      // Erreur globale
+      // Erreur
     }
   }
 
@@ -227,10 +236,7 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
                         onPressed: () => Navigator.pop(context),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Detection de Chute',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2D3142)),
-                      ),
+                      const Text('Detection de Chute', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
                     ],
                   ),
                 ),
@@ -289,16 +295,11 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen> wit
                                 children: [
                                   Icon(Icons.info_outline, color: Color(0xFF4A90E2)),
                                   SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text('Comment ca fonctionne?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
-                                  ),
+                                  Expanded(child: Text('Comment ca fonctionne?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142)))),
                                 ],
                               ),
                               SizedBox(height: 12),
-                              Text(
-                                '• Surveillance automatique permanente\n• En cas de chute: 30 secondes pour repondre\n• Pas de reponse = alerte automatique',
-                                style: TextStyle(fontSize: 14, color: Color(0xFF2D3142), height: 1.5),
-                              ),
+                              Text('• Surveillance automatique permanente\n• En cas de chute: 30 secondes pour repondre\n• Pas de reponse = alerte automatique', style: TextStyle(fontSize: 14, color: Color(0xFF2D3142), height: 1.5)),
                             ],
                           ),
                         ),
@@ -386,10 +387,7 @@ class _FallAlertScreenState extends State<_FallAlertScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                  child: Text(
-                    _hasResponded ? 'Traitement...' : '$_secondsRemaining secondes',
-                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F)),
-                  ),
+                  child: Text(_hasResponded ? 'Traitement...' : '$_secondsRemaining secondes', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
                 ),
                 const SizedBox(height: 40),
                 const Text('Allez-vous bien?', style: TextStyle(fontSize: 24, color: Colors.black87)),
@@ -409,10 +407,7 @@ class _FallAlertScreenState extends State<_FallAlertScreen> {
                       children: [
                         Icon(Icons.check_circle, size: 32, color: _hasResponded ? Colors.grey.shade600 : Colors.white),
                         const SizedBox(width: 12),
-                        Text(
-                          'JE VAIS BIEN',
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _hasResponded ? Colors.grey.shade600 : Colors.white),
-                        ),
+                        Text('JE VAIS BIEN', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _hasResponded ? Colors.grey.shade600 : Colors.white)),
                       ],
                     ),
                   ),
@@ -433,10 +428,7 @@ class _FallAlertScreenState extends State<_FallAlertScreen> {
                       children: [
                         Icon(Icons.sos, size: 32, color: _hasResponded ? Colors.grey.shade600 : Colors.white),
                         const SizedBox(width: 12),
-                        Text(
-                          "J'AI BESOIN D'AIDE",
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _hasResponded ? Colors.grey.shade600 : Colors.white),
-                        ),
+                        Text("J'AI BESOIN D'AIDE", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _hasResponded ? Colors.grey.shade600 : Colors.white)),
                       ],
                     ),
                   ),
