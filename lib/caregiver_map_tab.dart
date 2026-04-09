@@ -7,7 +7,8 @@ import 'dart:ui' as ui;
 import 'dart:async';
 
 class CaregiverMapTab extends StatefulWidget {
-  const CaregiverMapTab({super.key});
+  final String? patientUid;
+  const CaregiverMapTab({super.key, this.patientUid});
   @override
   State<CaregiverMapTab> createState() => _CaregiverMapTabState();
 }
@@ -26,6 +27,15 @@ class _CaregiverMapTabState extends State<CaregiverMapTab> {
   void initState() {
     super.initState();
     _initializeRealtimeTracking();
+  }
+
+  @override
+  void didUpdateWidget(CaregiverMapTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.patientUid != widget.patientUid && widget.patientUid != null && widget.patientUid!.isNotEmpty) {
+      _positionSubscription?.cancel();
+      _initializeRealtimeTracking();
+    }
   }
 
   @override
@@ -61,8 +71,7 @@ class _CaregiverMapTabState extends State<CaregiverMapTab> {
         return;
       }
 
-      // Afficher le PREMIER patient de la liste
-      final patientUid = linkedPatients.first;
+      final patientUid = widget.patientUid ?? linkedPatients.first;
       _patientUid = patientUid;
 
       debugPrint('[Map] Affichage patient: $patientUid');
@@ -393,7 +402,7 @@ class _CaregiverMapTabState extends State<CaregiverMapTab> {
                       ),
                     ],
                   ),
-                  SliderTheme(
+                    SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       activeTrackColor: const Color(0xFF4A90E2),
                       inactiveTrackColor: const Color(0xFF4A90E2).withValues(alpha: 0.3),

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:alzhecare/sign_up_screen.dart';
 import 'geofencing_service.dart';
-import 'user_session_manager.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -56,11 +55,6 @@ class _SignInScreenState extends State<SignInScreen> {
 
       if (userDoc.exists) {
         String role = userDoc['role'] as String? ?? 'patient';
-
-        await UserSessionManager.saveSession(
-          userCredential.user!.uid,
-          role,
-        );
 
         if (role == 'patient') {
           await GeofencingService.startTracking(intervalMinutes: 15);

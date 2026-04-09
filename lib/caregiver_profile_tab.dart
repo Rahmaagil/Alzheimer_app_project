@@ -1,16 +1,22 @@
 import 'package:alzhecare/fcm_service.dart';
+import 'package:alzhecare/theme.dart';
+import 'package:alzhecare/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'sign_in_screen.dart';
 import 'caregiver_settings_screen.dart';
-import 'user_session_manager.dart';
 import 'geofencing_service.dart';
 import 'patient_caregiver_link_service.dart';
+import 'caregiver_reminders_calendar_screen.dart';
+import 'security_settings_screen.dart';
+import 'caregiver_add_face_screen.dart';
+import 'saved_faces_screen.dart';
 
 class CaregiverProfileTab extends StatefulWidget {
-  const CaregiverProfileTab({super.key});
+  final String? selectedPatientUid;
+  const CaregiverProfileTab({super.key, this.selectedPatientUid});
 
   @override
   State<CaregiverProfileTab> createState() => _CaregiverProfileTabState();
@@ -74,12 +80,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
 
       if (linkedPatients.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Aucun patient lié"),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          AppNotifications.showWarning(context, "Aucun patient lié");
         }
         setState(() {
           _linkedPatientUids = [];
@@ -90,10 +91,10 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
 
       setState(() {
         _linkedPatientUids = linkedPatients;
-        _currentPatientUid = linkedPatients.first;
+        _currentPatientUid = widget.selectedPatientUid ?? linkedPatients.first;
       });
 
-      await _loadPatientData(linkedPatients.first);
+      await _loadPatientData(widget.selectedPatientUid ?? linkedPatients.first);
 
     } catch (e) {
       debugPrint("Erreur: $e");
@@ -110,12 +111,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
 
       if (!patDoc.exists) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Patient introuvable"),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppNotifications.showError(context, "Patient introuvable");
         }
         setState(() => _isLoading = false);
         return;
@@ -173,12 +169,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppNotifications.showError(context, "Erreur: $e");
     }
   }
 
@@ -282,23 +273,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
           TextButton.icon(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: code));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('Code copié'),
-                    ],
-                  ),
-                  backgroundColor: Colors.green,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              AppNotifications.showSuccess(context, "Code copié");
             },
             icon: const Icon(Icons.copy),
             label: const Text('Copier'),
@@ -345,21 +320,11 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profil mis à jour'),
-            backgroundColor: Color(0xFF4CAF50),
-          ),
-        );
+        AppNotifications.showSuccess(context, 'Profil mis à jour');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppNotifications.showError(context, 'Erreur: $e');
       }
     }
   }
@@ -563,7 +528,6 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
     try {
       await FCMService.stopListeningFirestoreAlerts();
       await GeofencingService.stopTracking();
-      await UserSessionManager.clearSession();
       await FirebaseAuth.instance.signOut();
 
       if (mounted) {
@@ -579,19 +543,14 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
 
   void _showRemindersManagement() {
     if (_currentPatientUid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Aucun patient lié"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppNotifications.showWarning(context, "Aucun patient lié");
       return;
     }
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _RemindersManagementScreen(patientUid: _currentPatientUid!),
+        builder: (_) => CaregiverRemindersCalendarScreen(patientUid: _currentPatientUid!),
       ),
     );
   }
@@ -776,7 +735,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
                     InkWell(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const CaregiverSettingsScreen()),
+                        MaterialPageRoute(builder: (_) => CaregiverSettingsScreen(patientUid: _currentPatientUid)),
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
@@ -853,6 +812,184 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
                                   SizedBox(height: 4),
                                   Text(
                                     'Ajouter, modifier, supprimer',
+                                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios, color: Colors.black26, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    InkWell(
+                      onTap: () {
+                        if (_currentPatientUid == null) {
+                          AppNotifications.showWarning(context, "Aucun patient lié");
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SecuritySettingsScreen(),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF9575CD), Color(0xFF7E57C2)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.security, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Sécurité',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF2E5AAC),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'PIN, biométrie, session',
+                                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios, color: Colors.black26, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    InkWell(
+                      onTap: () {
+                        if (_currentPatientUid == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Aucun patient lié"),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CaregiverAddFaceScreen(
+                              patientUid: _currentPatientUid!,
+                              patientName: _patientData?['name'] ?? 'Patient',
+                            ),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF4CAF50), Color(0xFF45A049)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.person_add, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Ajouter un proche',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF2E5AAC),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Enregistrer un visage pour reconnaissance',
+                                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios, color: Colors.black26, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    InkWell(
+                      onTap: () {
+                        if (_currentPatientUid == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Aucun patient lié"),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SavedFacesScreen(patientUid: _currentPatientUid),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.face, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Visages enregistrés',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF2E5AAC),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Voir et gérer les proches reconnus',
                                     style: TextStyle(fontSize: 14, color: Colors.black54),
                                   ),
                                 ],
@@ -983,458 +1120,4 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
   );
 }
 
-// ==================== ÉCRAN DE GESTION DES RAPPELS ====================
-
-class _RemindersManagementScreen extends StatefulWidget {
-  final String patientUid;
-
-  const _RemindersManagementScreen({required this.patientUid});
-
-  @override
-  State<_RemindersManagementScreen> createState() => _RemindersManagementScreenState();
-}
-
-class _RemindersManagementScreenState extends State<_RemindersManagementScreen> {
-  List<Map<String, dynamic>> _reminders = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadReminders();
-  }
-
-  Future<void> _loadReminders() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final now = DateTime.now();
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.patientUid)
-          .collection('reminders')
-          .where('done', isEqualTo: false)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(now))
-          .orderBy('date')
-          .get();
-
-      final list = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'title': data['title'] ?? '',
-          'date': data['date'] as Timestamp?,
-          'done': data['done'] ?? false,
-        };
-      }).toList();
-
-      setState(() {
-        _reminders = list;
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint("Erreur: $e");
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _deleteReminder(String docId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Supprimer ce rappel ?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Non"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Oui", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.patientUid)
-          .collection('reminders')
-          .doc(docId)
-          .delete();
-
-      _loadReminders();
-    } catch (e) {
-      debugPrint("Erreur: $e");
-    }
-  }
-
-  void _showAddDialog() {
-    final titleController = TextEditingController();
-    TimeOfDay selectedTime = TimeOfDay.now();
-    DateTime selectedDate = DateTime.now();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFFF0F7FF),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              title: const Text(
-                'Nouveau rappel',
-                style: TextStyle(
-                  color: Color(0xFF2E5AAC),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 18),
-                    decoration: InputDecoration(
-                      labelText: 'Quoi ?',
-                      labelStyle: const TextStyle(fontSize: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              initialDate: selectedDate,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
-                            );
-                            if (date != null) {
-                              setDialogState(() => selectedDate = date);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.calendar_today, color: Color(0xFF4A90E2), size: 28),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "${selectedDate.day}/${selectedDate.month}",
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            final time = await showTimePicker(
-                              context: context,
-                              initialTime: selectedTime,
-                            );
-                            if (time != null) {
-                              setDialogState(() => selectedTime = time);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.access_time, color: Color(0xFF4A90E2), size: 28),
-                                const SizedBox(height: 8),
-                                Text(
-                                  selectedTime.format(context),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text("Annuler", style: TextStyle(fontSize: 16)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    if (title.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Entrez un titre")),
-                      );
-                      return;
-                    }
-
-                    final reminderDateTime = DateTime(
-                      selectedDate.year,
-                      selectedDate.month,
-                      selectedDate.day,
-                      selectedTime.hour,
-                      selectedTime.minute,
-                    );
-
-                    await FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(widget.patientUid)
-                        .collection('reminders')
-                        .add({
-                      'title': title,
-                      'date': Timestamp.fromDate(reminderDateTime),
-                      'done': false,
-                      'createdAt': FieldValue.serverTimestamp(),
-                    });
-
-                    Navigator.pop(dialogContext);
-                    _loadReminders();
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Rappel ajouté"),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4A90E2),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    "Ajouter",
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  String _formatTime(Timestamp? ts) {
-    if (ts == null) return '--:--';
-    final d = ts.toDate();
-    return "${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}";
-  }
-
-  String _formatDate(Timestamp? ts) {
-    if (ts == null) return '';
-    final d = ts.toDate();
-    return "${d.day}/${d.month}/${d.year}";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFEAF2FF),
-        elevation: 0,
-        title: const Text(
-          "Rappels du patient",
-          style: TextStyle(
-            color: Color(0xFF2E5AAC),
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-          ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: _showAddDialog,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          icon: const Icon(Icons.add, color: Colors.white, size: 28),
-          label: const Text(
-            "Ajouter",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-        ),
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
-            : _reminders.isEmpty
-            ? _buildEmptyState()
-            : RefreshIndicator(
-          onRefresh: _loadReminders,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: _reminders.map((r) => _buildReminderCard(r)).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReminderCard(Map<String, dynamic> reminder) {
-    final title = reminder['title'] as String;
-    final ts = reminder['date'] as Timestamp?;
-    final docId = reminder['id'] as String;
-    final timeText = _formatTime(ts);
-    final dateText = _formatDate(ts);
-
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.notifications, color: Colors.white, size: 28),
-            ),
-            const SizedBox(width: 16),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 6),
-                      Text(
-                        dateText,
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 6),
-                      Text(
-                        timeText,
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            InkWell(
-              onTap: () => _deleteReminder(docId),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-                size: 30,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none_rounded, size: 100, color: Colors.grey[300]),
-          const SizedBox(height: 30),
-          const Text(
-            "Aucun rappel",
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5AAC),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              "Appuyez sur + pour ajouter",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, color: Colors.grey[700]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// End of file

@@ -1,0 +1,64 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "collection",
+      "fields": [
+        {
+          "fieldPath": "caregiverId",
+          "order": "ascending"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ascending"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "descending"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "collection",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ascending"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "descending"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reminders",
+      "queryScope": "collection",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ascending"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ascending"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rappels",
+      "queryScope": "collection",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ascending"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ascending"
+        }
+      ]
+    }
+  ]
+}

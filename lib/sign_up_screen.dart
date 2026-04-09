@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'geofencing_service.dart';
-import 'user_session_manager.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -60,12 +59,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
           .doc(userCredential.user!.uid)
           .set(userData);
 
-      await UserSessionManager.saveSession(
-        userCredential.user!.uid,
-        _selectedRole,
-      );
-
-      // Si patient, démarrer le geofencing
       if (_selectedRole == 'patient') {
         await GeofencingService.startTracking(intervalMinutes: 15);
         print("[SignUp] Geofencing démarré pour le patient");

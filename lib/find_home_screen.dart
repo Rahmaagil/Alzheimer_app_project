@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 class FindHomeScreen extends StatefulWidget {
   const FindHomeScreen({super.key});
@@ -18,7 +17,6 @@ class _FindHomeScreenState extends State<FindHomeScreen> {
   bool _isNavigating = false;
   String? _errorMessage;
   String? _homeAddress;
-  Position? _currentPosition;
   double? _homeLat;
   double? _homeLng;
   double? _distanceMeters;
@@ -122,7 +120,6 @@ class _FindHomeScreenState extends State<FindHomeScreen> {
       );
 
       setState(() {
-        _currentPosition = position;
         _distanceMeters = distance;
         _bearing = bearing;
         _isLoading = false;
@@ -186,7 +183,6 @@ class _FindHomeScreenState extends State<FindHomeScreen> {
     );
 
     setState(() {
-      _currentPosition = position;
       _distanceMeters = distance;
       _bearing = bearing;
     });

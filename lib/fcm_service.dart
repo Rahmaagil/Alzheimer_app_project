@@ -177,7 +177,7 @@ class FCMService {
     final channelId = _getChannelIdForType(alertType);
     final importance = _getImportanceForType(alertType);
 
-    final androidDetails = AndroidNotificationDetails(
+    final androidBuilder = AndroidNotificationDetails(
       channelId,
       _getChannelNameForType(alertType),
       channelDescription: _getChannelDescForType(alertType),
@@ -191,9 +191,11 @@ class FCMService {
         notification.body ?? '',
         contentTitle: notification.title,
       ),
+      actions: _getActionsForType(alertType),
+      fullScreenIntent: alertType == 'sos' || alertType == 'fall',
     );
 
-    final details = NotificationDetails(android: androidDetails);
+    final details = NotificationDetails(android: androidBuilder);
 
     await _localNotifications.show(
       message.hashCode,
@@ -204,21 +206,42 @@ class FCMService {
     );
   }
 
+  static List<AndroidNotificationAction> _getActionsForType(String type) {
+    switch (type.toLowerCase()) {
+      case 'sos':
+        return [
+          const AndroidNotificationAction('sos', 'Accepter', showsUserInterface: true),
+          const AndroidNotificationAction('dismiss', 'Ignorer'),
+        ];
+      case 'fall':
+        return [
+          const AndroidNotificationAction('call', 'Appeler', showsUserInterface: true),
+          const AndroidNotificationAction('dismiss', 'Ignorer'),
+        ];
+      case 'geofence':
+        return [
+          const AndroidNotificationAction('view', 'Voir position', showsUserInterface: true),
+        ];
+      default:
+        return [];
+    }
+  }
+
   static Future<void> startListeningFirestoreAlerts(String caregiverUid) async {
     debugPrint('[FCM] Ecoute Firestore pour: $caregiverUid');
 
     await _firestoreSubscription?.cancel();
 
+    // CORRECTION: Suppression du orderBy pour éviter l'index composite Firestore
     _firestoreSubscription = FirebaseFirestore.instance
         .collection('notifications')
         .where('caregiverId', isEqualTo: caregiverUid)
         .where('status', isEqualTo: 'pending')
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snapshot) async {
       for (var change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() as Map<String, dynamic>?;
+          final data = change.doc.data();
           if (data != null) {
             await _showFirestoreNotification(change.doc.id, data);
           }
@@ -234,21 +257,26 @@ class FCMService {
 
   static Future<void> _showFirestoreNotification(
       String notifId, Map<String, dynamic> notif) async {
-    final notification = notif['notification'] as Map<String, dynamic>?;
-    final title = notification?['title'] ?? 'AlzheCare';
-    final body = notification?['body'] ?? 'Nouvelle alerte';
+    // CORRECTION: Lecture des champs au niveau racine (title/message)
+    // Les notifications app utilisent 'title' et 'message', pas un objet 'notification' imbriqué
+    final title = notif['title'] as String? ?? 'AlzheCare';
+    final body = notif['message'] as String? ?? 'Nouvelle alerte';
+    final type = (notif['type'] as String? ?? '').toLowerCase();
+    final channelId = _getChannelIdForType(type);
 
     await _localNotifications.show(
       notifId.hashCode,
       title,
       body,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'alzhecare_alerts',
-          'Alertes Urgentes',
+          channelId,
+          _getChannelNameForType(type),
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          playSound: true,
         ),
       ),
     );
@@ -257,12 +285,12 @@ class FCMService {
         .collection('notifications')
         .doc(notifId)
         .update({
-      'status': 'delivered',
+      'isRead': true,
       'deliveredAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // FONCTION MODIFIEE: Multi-caregivers
+
   static Future<void> sendNotificationToCaregiver({
     required String patientUid,
     required String title,
@@ -276,7 +304,9 @@ class FCMService {
           .doc(patientUid)
           .get();
 
-      // NOUVEAU: Liste au lieu d'un seul
+      // CORRECTION: Récupérer le nom du patient pour les notifications
+      final patientName = patientDoc.data()?['name'] as String? ?? 'Patient';
+
       final linkedCaregivers = List<String>.from(
           patientDoc.data()?['linkedCaregivers'] ?? []
       );
@@ -297,13 +327,25 @@ class FCMService {
 
         if (fcmToken == null) {
           debugPrint('[FCM] Caregiver $caregiverUid sans token FCM');
-          continue;
+          // CORRECTION: Créer quand même la notification Firestore même sans token FCM
         }
 
         await FirebaseFirestore.instance
             .collection('notifications')
             .add({
-          'caregiverUid': caregiverUid,
+          // CORRECTION: 'caregiverUid' → 'caregiverId' pour cohérence avec toute l'app
+          'caregiverId': caregiverUid,
+          'patientId': patientUid,         // AJOUT: champ requis par dashboard/alertes
+          'patientName': patientName,      // AJOUT: nom affiché dans les alertes
+          'type': type ?? '',              // AJOUT: champ type au niveau racine
+          'title': title,                 // AJOUT: champ title au niveau racine
+          'message': body,                // AJOUT: champ message (cohérent avec autres notifications)
+          'isRead': false,                // AJOUT: champ requis pour le suivi de lecture
+          'status': 'pending',
+          'timestamp': FieldValue.serverTimestamp(),
+          'latitude': data?['latitude'],  // AJOUT: position au niveau racine
+          'longitude': data?['longitude'], // AJOUT: position au niveau racine
+          // Champs pour envoi FCM via Cloud Functions (si token disponible)
           'to': fcmToken,
           'notification': {
             'title': title,
@@ -315,8 +357,6 @@ class FCMService {
             'patientUid': patientUid,
           },
           'priority': 'high',
-          'createdAt': FieldValue.serverTimestamp(),
-          'status': 'pending',
         });
       }
 

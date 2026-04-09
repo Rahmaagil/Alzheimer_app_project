@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // USERS: tous les utilisateurs peuvent lire leur propre profil
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      match /locations/{locationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /reminders/{reminderId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /rappels/{rappelId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /savedFaces/{faceId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /alerts/{alertId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // INVITE CODES
+    match /inviteCodes/{code} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // NOTIFICATIONS
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.caregiverId;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.caregiverId;
+    }
+  }
+}

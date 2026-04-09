@@ -1,10 +1,9 @@
-import 'dart:typed_data';
 import 'dart:math';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'face_image_service.dart';
 
 class FaceRecognitionService {
 
@@ -90,20 +89,24 @@ class FaceRecognitionService {
     required List<double> embedding,
     String? relation,
     String? phoneNumber,
+    String? patientUid,
+    String? imageUrl,
   }) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return false;
+      final targetUid = patientUid ?? user?.uid;
+      if (targetUid == null) return false;
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetUid)
           .collection('proches')
           .add({
         'name': name,
         'embedding': embedding,
         'relation': relation ?? '',
         'phoneNumber': phoneNumber ?? '',
+        'imageUrl': imageUrl ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -116,14 +119,15 @@ class FaceRecognitionService {
     }
   }
 
-  static Future<Map<String, dynamic>?> recognizeFace(List<double> embedding) async {
+  static Future<Map<String, dynamic>?> recognizeFace(List<double> embedding, {String? patientUid}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
+      final targetUid = patientUid ?? user?.uid;
+      if (targetUid == null) return null;
 
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetUid)
           .collection('proches')
           .get();
 
@@ -169,14 +173,15 @@ class FaceRecognitionService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getSavedFaces() async {
+  static Future<List<Map<String, dynamic>>> getSavedFaces({String? patientUid}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return [];
+      final targetUid = patientUid ?? user?.uid;
+      if (targetUid == null) return [];
 
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetUid)
           .collection('proches')
           .orderBy('createdAt', descending: true)
           .get();
@@ -188,6 +193,7 @@ class FaceRecognitionService {
           'name': data['name'],
           'relation': data['relation'] ?? '',
           'phoneNumber': data['phoneNumber'] ?? '',
+          'imageUrl': data['imageUrl'] ?? '',
         };
       }).toList();
 
@@ -197,14 +203,20 @@ class FaceRecognitionService {
     }
   }
 
-  static Future<bool> deleteFace(String id) async {
+  static Future<bool> deleteFace(String id, {String? patientUid}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return false;
+      final targetUid = patientUid ?? user?.uid;
+      if (targetUid == null) return false;
+
+      await FaceImageService.deleteFaceImage(
+        patientUid: targetUid,
+        faceId: id,
+      );
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetUid)
           .collection('proches')
           .doc(id)
           .delete();

@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'face_recognition_service.dart';
+import 'face_image_service.dart';
 
 class FaceCameraScreen extends StatefulWidget {
   final bool isRegistrationMode;
@@ -238,8 +241,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         return;
       }
 
+      final tempDir = await getTemporaryDirectory();
+      final imagePath = '${tempDir.path}/face_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File(imagePath);
+      file.writeAsBytesSync(img.encodeJpg(faceImage, quality: 85));
+
       if (widget.isRegistrationMode) {
-        await _showNameDialog(embedding);
+        await _showNameDialog(embedding, imagePath);
       } else {
         final result = await FaceRecognitionService.recognizeFace(embedding);
 
@@ -256,7 +264,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     setState(() => _isProcessing = false);
   }
 
-  Future<void> _showNameDialog(List<double> embedding) async {
+  Future<void> _showNameDialog(List<double> embedding, String imagePath) async {
     final nameController = TextEditingController();
     final relationController = TextEditingController();
     final phoneController = TextEditingController();
@@ -313,11 +321,19 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                 return;
               }
 
+              final faceId = DateTime.now().millisecondsSinceEpoch.toString();
+              final imageUrl = await FaceImageService.saveFaceImage(
+                imagePath: imagePath,
+                patientUid: '', 
+                faceId: faceId,
+              );
+
               final success = await FaceRecognitionService.saveFace(
                 name: nameController.text.trim(),
                 embedding: embedding,
                 relation: relationController.text.trim(),
                 phoneNumber: phoneController.text.trim(),
+                imageUrl: imageUrl,
               );
 
               Navigator.pop(ctx, success);

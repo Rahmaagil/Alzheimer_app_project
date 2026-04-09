@@ -1,6 +1,5 @@
 import 'package:workmanager/workmanager.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'fcm_service.dart';
 
 class BackgroundService {
 

@@ -7,7 +7,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
 
 class CaregiverAlertsTab extends StatefulWidget {
-  const CaregiverAlertsTab({super.key});
+  final List<String>? patientUids;
+  const CaregiverAlertsTab({super.key, this.patientUids});
 
   @override
   State<CaregiverAlertsTab> createState() => _CaregiverAlertsTabState();
@@ -19,6 +20,7 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
   StreamSubscription? _alertsSubscription;
   bool _showStats = false;
   bool _isLoadingPatients = true;
+  int _selectedPeriod = 7;
 
   final FlutterLocalNotificationsPlugin _localNotifications =
   FlutterLocalNotificationsPlugin();
@@ -61,9 +63,16 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
     }
   }
 
-  // CORRECTION COMPLETE: Charge vraiment les patients depuis Firebase
   Future<void> _loadLinkedPatients() async {
     debugPrint('[Alerts] Debut chargement patients...');
+
+    if (widget.patientUids != null && widget.patientUids!.isNotEmpty) {
+      setState(() {
+        _linkedPatientIds = widget.patientUids!;
+        _isLoadingPatients = false;
+      });
+      return;
+    }
 
     setState(() => _isLoadingPatients = true);
 
@@ -155,12 +164,11 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
         .collection('notifications')
         .where('caregiverId', isEqualTo: user.uid)
         .where('status', isEqualTo: 'pending')
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snapshot) {
       for (var change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() as Map<String, dynamic>?;
+          final data = change.doc.data();
           if (data != null) {
             final patientId = data['patientId'] as String?;
             if (patientId != null && _linkedPatientIds.contains(patientId)) {
@@ -207,62 +215,6 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
     } catch (e) {
       debugPrint('[Notifications] Erreur notification systeme: $e');
     }
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: isSOS || isFall
-                      ? [const Color(0xFFFF5F6D), const Color(0xFFFFC371)]
-                      : [const Color(0xFF6EC6FF), const Color(0xFF4A90E2)],
-                ),
-              ),
-              child: Icon(
-                isSOS ? Icons.warning_rounded :
-                isFall ? Icons.personal_injury :
-                Icons.notification_important,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isSOS ? 'ALERTE SOS !' :
-                    isFall ? 'CHUTE DETECTEE !' :
-                    'Nouvelle alerte',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    alertData['message'] ?? type,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF2E5AAC),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
   }
 
   Future<void> _markAllAlertsAsSeen() async {
@@ -712,6 +664,8 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
               _buildFilterChip('Zone', 'geofence', Icons.location_off),
               const SizedBox(width: 8),
               _buildFilterChip('Chute', 'fall', Icons.personal_injury),
+              const SizedBox(width: 8),
+              _buildFilterChip('Rappels', 'reminder', Icons.notifications_off),
             ],
           ),
         ),
@@ -810,6 +764,8 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
                         type.contains('zone');
                   case 'fall':
                     return type.contains('chute') || type.contains('fall');
+                  case 'reminder':
+                    return type.contains('reminder') || type.contains('rappel');
                   default:
                     return true;
                 }
@@ -948,6 +904,8 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
         type.toLowerCase().contains('zone');
     final isFall = type.toLowerCase().contains('chute') ||
         type.toLowerCase().contains('fall');
+    final isReminderMissed = type.toLowerCase().contains('reminder') ||
+        type.toLowerCase().contains('rappel');
     final isPending = status == 'pending';
 
     final List<Color> gradientColors;
@@ -966,6 +924,10 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
       gradientColors = [const Color(0xFFE91E63), const Color(0xFFEC407A)];
       icon = Icons.personal_injury;
       label = 'Chute détectée';
+    } else if (isReminderMissed) {
+      gradientColors = [const Color(0xFFFF9800), const Color(0xFFFFB74D)];
+      icon = Icons.alarm;
+      label = 'Rappel oublié';
     } else {
       gradientColors = [const Color(0xFF6EC6FF), const Color(0xFF4A90E2)];
       icon = Icons.notification_important;
@@ -1303,12 +1265,77 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedPeriod = 7),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: _selectedPeriod == 7
+                                ? const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)])
+                                : null,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '7 jours',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _selectedPeriod == 7 ? Colors.white : const Color(0xFF2E5AAC),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedPeriod = 30),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: _selectedPeriod == 30
+                                ? const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)])
+                                : null,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '30 jours',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _selectedPeriod == 30 ? Colors.white : const Color(0xFF2E5AAC),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
               Row(
                 children: [
                   Expanded(
                     child: _buildStatCard(
-                      'Cette semaine',
-                      '${alertsLast7Days.length}',
+                      _selectedPeriod == 7 ? 'Cette semaine' : 'Ce mois',
+                      _selectedPeriod == 7 ? '${alertsLast7Days.length}' : '${alertsLast30Days.length}',
                       Icons.calendar_today,
                       [const Color(0xFF6EC6FF), const Color(0xFF4A90E2)],
                     ),
@@ -1316,9 +1343,9 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildStatCard(
-                      'Ce mois',
-                      '${alertsLast30Days.length}',
-                      Icons.calendar_month,
+                      'Jours sans alerte',
+                      '${_calculateSafeDays(alerts)}',
+                      Icons.shield,
                       [const Color(0xFF66BB6A), const Color(0xFF43A047)],
                     ),
                   ),
@@ -1367,9 +1394,9 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Alertes des 7 derniers jours',
-                      style: TextStyle(
+                    Text(
+                      'Alertes des $_selectedPeriod derniers jours',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2E5AAC),
@@ -1445,42 +1472,100 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
 
               const SizedBox(height: 24),
 
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Répartition par type',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E5AAC),
+              if (sosCount + geofenceCount + fallCount > 0)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTypeRow('SOS', sosCount, alerts.length,
-                        [const Color(0xFFFF5F6D), const Color(0xFFFFC371)]),
-                    const SizedBox(height: 12),
-                    _buildTypeRow('Sortie de zone', geofenceCount, alerts.length,
-                        [const Color(0xFFFFB74D), const Color(0xFFFFA726)]),
-                    const SizedBox(height: 12),
-                    _buildTypeRow('Chutes', fallCount, alerts.length,
-                        [const Color(0xFFE91E63), const Color(0xFFEC407A)]),
-                  ],
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Répartition par type',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E5AAC),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        height: 200,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: PieChart(
+                                PieChartData(
+                                  sectionsSpace: 2,
+                                  centerSpaceRadius: 40,
+                                  sections: [
+                                    if (sosCount > 0)
+                                      PieChartSectionData(
+                                        value: sosCount.toDouble(),
+                                        color: const Color(0xFFFF5F6D),
+                                        title: '$sosCount',
+                                        titleStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        radius: 50,
+                                      ),
+                                    if (geofenceCount > 0)
+                                      PieChartSectionData(
+                                        value: geofenceCount.toDouble(),
+                                        color: const Color(0xFFFFB74D),
+                                        title: '$geofenceCount',
+                                        titleStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        radius: 50,
+                                      ),
+                                    if (fallCount > 0)
+                                      PieChartSectionData(
+                                        value: fallCount.toDouble(),
+                                        color: const Color(0xFFE91E63),
+                                        title: '$fallCount',
+                                        titleStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        radius: 50,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _legendItem('SOS', const Color(0xFFFF5F6D)),
+                                const SizedBox(height: 12),
+                                _legendItem('Zone', const Color(0xFFFFB74D)),
+                                const SizedBox(height: 12),
+                                _legendItem('Chutes', const Color(0xFFE91E63)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         );
@@ -1525,6 +1610,57 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
           ),
         ],
       ),
+    );
+  }
+
+  int _calculateSafeDays(List<QueryDocumentSnapshot> alerts) {
+    if (alerts.isEmpty) return _selectedPeriod;
+
+    final now = DateTime.now();
+    final periodStart = now.subtract(Duration(days: _selectedPeriod));
+    
+    final alertDates = <DateTime>{};
+    for (final doc in alerts) {
+      final ts = (doc.data() as Map<String, dynamic>)['timestamp'] as Timestamp?;
+      if (ts != null) {
+        final date = ts.toDate();
+        if (date.isAfter(periodStart)) {
+          alertDates.add(DateTime(date.year, date.month, date.day));
+        }
+      }
+    }
+
+    int safeDays = 0;
+    for (int i = 0; i < _selectedPeriod; i++) {
+      final date = periodStart.add(Duration(days: i));
+      if (!alertDates.contains(DateTime(date.year, date.month, date.day))) {
+        safeDays++;
+      }
+    }
+
+    return safeDays;
+  }
+
+  Widget _legendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(0xFF2E5AAC),
+          ),
+        ),
+      ],
     );
   }
 

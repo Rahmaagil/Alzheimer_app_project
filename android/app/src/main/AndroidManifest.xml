@@ -65,7 +65,25 @@
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@android:color/holo_blue_dark" />
 
-        <!-- ========== AJOUT ICI : RECEIVERS POUR NOTIFICATIONS LOCALES ========== -->
+        <!-- ========== AJOUT ICI : FOREGROUND SERVICE ========== -->
+        <service
+            android:name=".ContinuousLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
+
+        <!-- Boot Receiver pour redémarrer les services -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- ====================================================== -->
 
         <!-- Receiver pour notifications programmées -->
         <receiver

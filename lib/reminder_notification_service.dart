@@ -17,6 +17,8 @@ class ReminderNotificationService {
 
     await _notifications.initialize(initSettings);
     await _requestPermissions();
+    
+    await _checkMissedReminders();
   }
 
   static Future<void> _requestPermissions() async {
@@ -25,6 +27,86 @@ class ReminderNotificationService {
 
     if (androidPlugin != null) {
       await androidPlugin.requestNotificationsPermission();
+    }
+  }
+
+  static Future<void> _checkMissedReminders() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final now = DateTime.now();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reminders')
+          .where('done', isEqualTo: false)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final timestamp = data['date'] as Timestamp?;
+        final wasNotified = data['notifiedCaregiver'] as bool? ?? false;
+
+        if (timestamp != null && !wasNotified) {
+          final reminderTime = timestamp.toDate();
+          final missedDuration = now.difference(reminderTime);
+          
+          if (missedDuration.inMinutes >= 30) {
+            await _sendReminderMissedNotification(user.uid, data, doc.id);
+          }
+        }
+      }
+    } catch (e) {
+      print("[Notification] Erreur vérification rappels manqués: $e");
+    }
+  }
+
+  static Future<void> _sendReminderMissedNotification(String patientUid, Map<String, dynamic> reminderData, String reminderId) async {
+    try {
+      final patientDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(patientUid)
+          .get();
+
+      final patientName = patientDoc.data()?['name'] ?? 'Patient';
+      final reminderTitle = reminderData['title'] as String? ?? 'Rappel';
+      
+      final linkedCaregivers = List<String>.from(
+          patientDoc.data()?['linkedCaregivers'] ?? []
+      );
+
+      if (linkedCaregivers.isEmpty) return;
+
+      final position = patientDoc.data()?['lastPosition'] as Map<String, dynamic>?;
+
+      for (final caregiverId in linkedCaregivers) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'caregiverId': caregiverId,
+          'patientId': patientUid,
+          'patientName': patientName,
+          'type': 'reminder_missed',
+          'title': 'Rappel oublié',
+          'message': '$patientName a oublié son rappel: "$reminderTitle"',
+          'timestamp': FieldValue.serverTimestamp(),
+          'status': 'pending',
+          'reminderTitle': reminderTitle,
+          'latitude': position?['latitude'],
+          'longitude': position?['longitude'],
+          'isRead': false,
+        });
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(patientUid)
+          .collection('reminders')
+          .doc(reminderId)
+          .update({'notifiedCaregiver': true});
+
+      print("[Notification] Notification rappel oublié envoyée à ${linkedCaregivers.length} caregiver(s)");
+    } catch (e) {
+      print("[Notification] Erreur envoi notification rappel oublié: $e");
     }
   }
 

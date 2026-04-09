@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geocoding/geocoding.dart';
 
 class CaregiverSettingsScreen extends StatefulWidget {
-  const CaregiverSettingsScreen({super.key});
+  final String? patientUid;
+  const CaregiverSettingsScreen({super.key, this.patientUid});
 
   @override
   State<CaregiverSettingsScreen> createState() => _CaregiverSettingsScreenState();
@@ -14,7 +15,9 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _addressController = TextEditingController();
 
-  String? _patientUid;
+  List<Map<String, dynamic>> _patientsList = [];
+  String? _selectedPatientUid;
+  String? _patientName;
   String? _homeAddress;
   double? _homeLat;
   double? _homeLng;
@@ -68,34 +71,74 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
         return;
       }
 
-      final patientUid = linkedPatients.first;
-      _patientUid = patientUid;
-
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(patientUid)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data();
-        final homeAddress = data?['homeAddress'];
-        final homeLocation = data?['homeLocation'];
-
-        setState(() {
-          _homeAddress = homeAddress;
-          _addressController.text = homeAddress ?? '';
-          if (homeLocation != null && homeLocation is Map) {
-            _homeLat = homeLocation['latitude']?.toDouble();
-            _homeLng = homeLocation['longitude']?.toDouble();
-          }
-          _safeZoneRadius = data?['safeZoneRadius'] ?? 300;
-        });
+      final patientsData = <Map<String, dynamic>>[];
+      for (final patientId in linkedPatients) {
+        final patientDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(patientId)
+            .get();
+        
+        if (patientDoc.exists) {
+          patientsData.add({
+            'id': patientId,
+            'name': patientDoc.data()?['name'] ?? 'Patient',
+          });
+        }
       }
+
+      final targetPatientUid = widget.patientUid ?? linkedPatients.first;
+
+      setState(() {
+        _patientsList = patientsData;
+        _selectedPatientUid = targetPatientUid;
+        _patientName = patientsData.firstWhere(
+          (p) => p['id'] == targetPatientUid,
+          orElse: () => {'name': 'Patient'},
+        )['name'];
+      });
+
+      await _loadPatientSettings(targetPatientUid);
+
     } catch (e) {
       debugPrint('[Settings] Erreur: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadPatientSettings(String patientUid) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(patientUid)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data();
+      final homeAddress = data?['homeAddress'];
+      final homeLocation = data?['homeLocation'];
+
+      setState(() {
+        _homeAddress = homeAddress;
+        _addressController.text = homeAddress ?? '';
+        _patientName = data?['name'] ?? 'Patient';
+        if (homeLocation != null && homeLocation is Map) {
+          _homeLat = homeLocation['latitude']?.toDouble();
+          _homeLng = homeLocation['longitude']?.toDouble();
+        }
+        _safeZoneRadius = data?['safeZoneRadius'] ?? 300;
+      });
+    }
+  }
+
+  Future<void> _onPatientChanged(String patientUid) async {
+    setState(() {
+      _selectedPatientUid = patientUid;
+      _patientName = _patientsList.firstWhere(
+        (p) => p['id'] == patientUid,
+        orElse: () => {'name': 'Patient'},
+      )['name'];
+    });
+    await _loadPatientSettings(patientUid);
   }
 
   Future<bool> _geocodeAddress() async {
@@ -153,7 +196,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    if (_patientUid == null) {
+    if (_selectedPatientUid == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun patient lié')));
       return;
     }
@@ -181,7 +224,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance.collection('users').doc(_patientUid!).update({
+      await FirebaseFirestore.instance.collection('users').doc(_selectedPatientUid!).update({
         'homeAddress': address,
         'homeLocation': {'latitude': _homeLat!, 'longitude': _homeLng!},
         'safeZoneRadius': _safeZoneRadius,
@@ -214,10 +257,32 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF2E5AAC)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Paramètres du patient',
-          style: TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 22),
-        ),
+        title: _patientsList.length > 1
+            ? DropdownButton<String>(
+                value: _selectedPatientUid,
+                dropdownColor: const Color(0xFF2E5AAC),
+                underline: const SizedBox(),
+                style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold),
+                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF2E5AAC)),
+                items: _patientsList.map((patient) {
+                  return DropdownMenuItem(
+                    value: patient['id'] as String,
+                    child: Text(
+                      patient['name'] as String,
+                      style: const TextStyle(color: Color(0xFF2E5AAC)),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    _onPatientChanged(value);
+                  }
+                },
+              )
+            : Text(
+                _patientName ?? 'Paramètres du patient',
+                style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 22),
+              ),
         centerTitle: true,
       ),
       body: Container(

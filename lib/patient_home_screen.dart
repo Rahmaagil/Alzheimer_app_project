@@ -1,18 +1,22 @@
 import 'package:alzhecare/lost_patient_screen.dart';
-import 'package:alzhecare/reminders_screen.dart';
+import 'package:alzhecare/reminders_calendar_screen.dart';
 import 'package:alzhecare/profile_screen.dart';
-import 'package:alzhecare/find_home_screen.dart';
+import 'package:alzhecare/direct_chat_screen.dart';
 import 'package:alzhecare/sign_in_screen.dart';
-import 'package:alzhecare/routine_settings_screen.dart';
-import 'package:alzhecare/patient_fall_monitor_screen.dart';
+import 'package:alzhecare/find_home_screen.dart';
 import 'package:alzhecare/patient_add_caregiver_screen.dart';
+import 'package:alzhecare/patient_fall_monitor_screen.dart';
+import 'package:alzhecare/urgent_call_screen.dart';
+import 'package:alzhecare/game_menu_screen.dart';
+import 'package:alzhecare/theme.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'smart_recognition_screen.dart';
 import 'geofencing_service.dart';
-import 'user_session_manager.dart';
+import 'continuous_background_service.dart';
 
 class PatientHomeScreen extends StatefulWidget {
   const PatientHomeScreen({super.key});
@@ -30,7 +34,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
   void initState() {
     super.initState();
     _loadUserData();
-    _startGeofencing();
+    _startBackgroundServices();
   }
 
   Future<void> _loadUserData() async {
@@ -56,12 +60,13 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
     }
   }
 
-  Future<void> _startGeofencing() async {
+  Future<void> _startBackgroundServices() async {
     try {
       await GeofencingService.startTracking(intervalMinutes: 10);
-      debugPrint("[PatientHome] Tracking GPS démarré");
+      await ContinuousBackgroundService.startForPatient();
+      debugPrint("[PatientHome] Services background démarrés");
     } catch (e) {
-      debugPrint("[PatientHome] Erreur démarrage tracking: $e");
+      debugPrint("[PatientHome] Erreur démarrage services: $e");
     }
   }
 
@@ -143,6 +148,129 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
     }
   }
 
+  Future<void> _showLinkedCaregiversBottomSheet() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final linkedCaregivers = List<String>.from(
+        userDoc.data()?['linkedCaregivers'] ?? []
+    );
+
+    if (linkedCaregivers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucun proche lié'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Mes proches',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF4A90E2),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: linkedCaregivers.length,
+                itemBuilder: (context, index) {
+                  final caregiverId = linkedCaregivers[index];
+                  return FutureBuilder(
+                    future: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(caregiverId)
+                        .get(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Color(0xFF4A90E2),
+                          ),
+                          title: Text('Chargement...'),
+                        );
+                      }
+                      final name = snapshot.data?['name'] ?? 'Proche';
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF4A90E2),
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        title: Text(name, style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF4A90E2),
+                        )),
+                        subtitle: const Text('Suiveur'),
+                        trailing: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.chat_bubble_outline,
+                            color: Color(0xFF4A90E2),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DirectChatScreen(
+                                otherUserId: caregiverId,
+                                otherUserName: name,
+                                isCaregiver: true,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -158,7 +286,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E5AAC),
+              backgroundColor: const Color(0xFF4A90E2),
             ),
             child: const Text("Déconnexion", style: TextStyle(color: Colors.white)),
           ),
@@ -170,7 +298,6 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
 
     try {
       await GeofencingService.stopTracking();
-      await UserSessionManager.clearSession();
       await FirebaseAuth.instance.signOut();
 
       if (mounted) {
@@ -195,6 +322,11 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF2FF),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showLinkedCaregiversBottomSheet(),
+        backgroundColor: const Color(0xFF4A90E2),
+        child: const Icon(Icons.chat, color: Colors.white),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -205,7 +337,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.menu, color: Color(0xFF2E5AAC)),
+                    icon: const Icon(Icons.menu, color: const Color(0xFF4A90E2)),
                     onPressed: () {
                       _showMenu(context);
                     },
@@ -215,27 +347,13 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF2E5AAC),
+                      color: const Color(0xFF4A90E2),
                     ),
                   ),
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
-                          Icons.notifications_active,
-                          color: Color(0xFF2E5AAC),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const RoutineSettingsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.person, color: Color(0xFF2E5AAC)),
+                        icon: const Icon(Icons.person, color: const Color(0xFF4A90E2)),
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -286,7 +404,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E5AAC),
+                  color: const Color(0xFF4A90E2),
                 ),
               ),
 
@@ -396,7 +514,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RemindersScreen()),
+                        MaterialPageRoute(builder: (_) => const RemindersCalendarScreen()),
                       );
                     },
                   ),
@@ -447,39 +565,93 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                       );
                     },
                   ),
+
+                  _buildCard(
+                    icon: Icons.psychology,
+                    label: "Jeux\nCognitifs",
+                    colors: const [
+                      Color(0xFF9C27B0),
+                      Color(0xFFBA68C8),
+                    ],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GameMenuScreen()),
+                      );
+                    },
+                  ),
+
+                  _buildCard(
+                    icon: Icons.phone_forwarded,
+                    label: "Appel\nUrgence",
+                    colors: const [
+                      Color(0xFFFF5F6D),
+                      Color(0xFFFF8A80),
+                    ],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const UrgentCallScreen()),
+                      );
+                    },
+                  ),
                 ],
               ),
 
               const SizedBox(height: 40),
 
-              GestureDetector(
-                onTap: _sendSOS,
-                child: Container(
-                  width: 130,
-                  height: 130,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFFFF5F6D),
-                        Color(0xFFFF2E63),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.8, end: 1.0),
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeOutBack,
+                builder: (context, scale, child) {
+                  return Transform.scale(
+                    scale: scale,
+                    child: child,
+                  );
+                },
+                child: GestureDetector(
+                  onTap: _sendSOS,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFFF5F6D),
+                          Color(0xFFFF2E63),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF5F6D).withValues(alpha: 0.5),
+                          blurRadius: 25,
+                          spreadRadius: 5,
+                        ),
                       ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFFFF5F6D),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Text(
-                      "SOS",
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.emergency,
+                            size: 40,
+                            color: Colors.white,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "SOS",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -683,33 +855,56 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: colors),
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: colors.last.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 6),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutBack,
+        builder: (context, value, child) {
+          return Transform.scale(
+            scale: value,
+            child: child,
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: colors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40, color: Colors.white),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(
+                color: colors.last.withValues(alpha: 0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 36, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

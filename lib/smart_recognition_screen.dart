@@ -75,7 +75,7 @@ class SmartRecognitionScreen extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF4A90E2).withOpacity(0.35),
+                        color: const Color(0xFF4A90E2).withValues(alpha: 0.35),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),
@@ -295,7 +295,7 @@ class SmartRecognitionScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),

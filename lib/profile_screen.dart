@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'security_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -265,6 +266,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Section Sécurité
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SecuritySettingsScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.security, color: Colors.white),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sécurité',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2E5AAC),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'PIN, biométrie, session',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF4A90E2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 

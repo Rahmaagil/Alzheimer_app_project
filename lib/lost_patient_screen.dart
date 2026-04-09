@@ -74,7 +74,7 @@ class _LostPatientScreen extends State<LostPatientScreen> {
         },
       });
 
-      // NOUVEAU: Récupérer liste suiveurs et envoyer notification
+      //  Récupérer liste suiveurs et envoyer notification
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -85,10 +85,13 @@ class _LostPatientScreen extends State<LostPatientScreen> {
       );
 
       // ENVOYER NOTIFICATION A TOUS LES SUIVEURS
+      final patientName = userDoc.data()?['name'] ?? 'Patient';
+
       for (final caregiverId in linkedCaregivers) {
         await FirebaseFirestore.instance.collection('notifications').add({
           'caregiverId': caregiverId,
           'patientId': user.uid,
+          'patientName': patientName,
           'type': 'lost',
           'title': 'Patient perdu',
           'message': 'Le patient a signalé être perdu',
@@ -96,6 +99,7 @@ class _LostPatientScreen extends State<LostPatientScreen> {
           'status': 'pending',
           'latitude': position.latitude,
           'longitude': position.longitude,
+          'isRead': false,
         });
       }
 
