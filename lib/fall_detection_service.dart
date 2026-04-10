@@ -10,7 +10,7 @@ class FallDetectionService {
   static const int WINDOW_SIZE = 200;
   static const int NUM_SENSORS = 9;
   static const int NUM_FEATURES = 90;
-  static const double FALL_THRESHOLD = 0.7;
+  static const double FALL_THRESHOLD = 0.85;
 
   Interpreter? _interpreter;
   List<double>? _scalerMean;

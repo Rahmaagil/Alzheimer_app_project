@@ -8,6 +8,7 @@ import 'caregiver_dashboard_tab.dart';
 import 'caregiver_map_tab.dart';
 import 'caregiver_profile_tab.dart';
 import 'caregiver_chatbot_screen.dart';
+import 'caregiver_chats_list_screen.dart';
 import 'fcm_service.dart';
 import 'direct_chat_screen.dart';
 
@@ -413,37 +414,87 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         child: IndexedStack(index: _currentIndex, children: _tabs),
       ),
 
-      floatingActionButton: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF6EC6FF), Color(0xFF2EC7F0)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF4A90E2).withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF81C784), Color(0xFF4CAF50)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () => _showChatOptions(),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(
-            Icons.psychology,
-            color: Colors.white,
-            size: 30,
+            child: FloatingActionButton(
+              heroTag: 'messages',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CaregiverChatsListScreen(),
+                  ),
+                );
+              },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: const Icon(
+                Icons.chat_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6EC6FF), Color(0xFF2EC7F0)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4A90E2).withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: 'assistant',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CaregiverChatbotScreen(),
+                  ),
+                );
+              },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: const Icon(
+                Icons.psychology,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'theme.dart';
@@ -119,8 +120,45 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       'lastSenderId': _currentUserId,
     }, SetOptions(merge: true));
 
+    await _sendChatNotification(text);
+
     _messageController.clear();
     _scrollToBottom();
+  }
+
+  Future<void> _sendChatNotification(String messageText) async {
+    try {
+      final otherUserDoc = await _firestore.collection('users').doc(widget.otherUserId).get();
+      final fcmToken = otherUserDoc.data()?['fcmToken'] as String?;
+      final userType = otherUserDoc.data()?['userType'] as String?;
+
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await _firestore.collection('notifications').add({
+          'recipientId': widget.otherUserId,
+          'senderId': _currentUserId,
+          'senderName': _currentUserName,
+          'type': 'chat_message',
+          'title': widget.isCaregiver ? 'Nouveau message de votre patient' : 'Nouveau message de votre suivi',
+          'message': messageText.length > 50 ? '${messageText.substring(0, 50)}...' : messageText,
+          'chatId': _getChatId(),
+          'isRead': false,
+          'timestamp': FieldValue.serverTimestamp(),
+          'to': fcmToken,
+          'notification': {
+            'title': widget.isCaregiver ? 'Nouveau message de votre patient' : 'Nouveau message de votre suivi',
+            'body': messageText.length > 50 ? '${messageText.substring(0, 50)}...' : messageText,
+          },
+          'data': {
+            'type': 'chat_message',
+            'chatId': _getChatId(),
+            'senderId': _currentUserId,
+          },
+          'priority': 'high',
+        });
+      }
+    } catch (e) {
+      debugPrint('[ChatNotification] Erreur: $e');
+    }
   }
 
   String _formatTime(Timestamp? ts) {
@@ -185,45 +223,42 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         ),
         centerTitle: false,
       ),
-      body: Stack(
-        children: [
-          AppDecorationWidgets.buildDecoCircles(),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF4A90E2)),
+                      )
+                    : _messages.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _messages.length,
+                            itemBuilder: (context, index) {
+                              final msg = _messages[index];
+                              final isMe = msg['senderId'] == _currentUserId;
+                              return _buildMessageBubble(msg, isMe);
+                            },
+                          ),
               ),
-            ),
-            child: Column(
-          children: [
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF4A90E2)),
-                    )
-                  : _messages.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _messages[index];
-                            final isMe = msg['senderId'] == _currentUserId;
-                            return _buildMessageBubble(msg, isMe);
-                          },
-                        ),
-            ),
-            _buildMessageInput(),
-          ],
+              _buildMessageInput(),
+            ],
+          ),
         ),
       ),
-    ],
-  ),
-);
-}
+    );
+  }
 
   Widget _buildEmptyState() {
     return Center(
