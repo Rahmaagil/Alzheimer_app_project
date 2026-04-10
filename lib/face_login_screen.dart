@@ -6,7 +6,6 @@ import 'package:alzhecare/patient_home_screen.dart';
 import 'package:alzhecare/caregiver_home_screen.dart';
 import 'package:alzhecare/patient_onboarding_screen.dart';
 import 'package:alzhecare/app_notifications.dart';
-import 'package:alzhecare/app_security_service.dart';
 import 'theme.dart';
 
 class FaceLoginScreen extends StatefulWidget {
@@ -135,35 +134,6 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              // Fingerprint button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 60,
-                                child: ElevatedButton(
-                                  onPressed: _loginWithFingerprint,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF64B5F6),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.fingerprint, color: Colors.white, size: 28),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'Me connecter par empreinte',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
 
@@ -205,78 +175,6 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
       } else {
         setState(() {
           _error = 'Visage non reconnu. Veuillez réessayer.';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = 'Erreur: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loginWithFingerprint() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final isBiometricAvailable = await AppSecurityService.isBiometricAvailable();
-      if (!isBiometricAvailable) {
-        setState(() {
-          _error = 'Empreinte digitale non disponible sur cet appareil';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final authenticated = await AppSecurityService.authenticateWithBiometric();
-      
-      if (authenticated) {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-
-          if (!userDoc.exists) {
-            setState(() {
-              _error = 'Compte non trouvé';
-              _isLoading = false;
-            });
-            return;
-          }
-
-          final onboardingComplete = userDoc['onboardingComplete'] ?? false;
-
-          if (!onboardingComplete) {
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const PatientOnboardingScreen()),
-              );
-            }
-            return;
-          }
-
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const PatientHomeScreen()),
-            );
-          }
-        } else {
-          setState(() {
-            _error = 'Erreur de connexion';
-            _isLoading = false;
-          });
-        }
-      } else {
-        setState(() {
-          _error = 'Empreinte non reconnue';
           _isLoading = false;
         });
       }

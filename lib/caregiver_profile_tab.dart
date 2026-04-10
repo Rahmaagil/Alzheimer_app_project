@@ -10,7 +10,6 @@ import 'caregiver_settings_screen.dart';
 import 'geofencing_service.dart';
 import 'patient_caregiver_link_service.dart';
 import 'caregiver_reminders_calendar_screen.dart';
-import 'security_settings_screen.dart';
 import 'caregiver_add_face_screen.dart';
 import 'saved_faces_screen.dart';
 
@@ -812,61 +811,6 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
                                   SizedBox(height: 4),
                                   Text(
                                     'Ajouter, modifier, supprimer',
-                                    style: TextStyle(fontSize: 14, color: Colors.black54),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios, color: Colors.black26, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 24),
-                    InkWell(
-                      onTap: () {
-                        if (_currentPatientUid == null) {
-                          AppNotifications.showWarning(context, "Aucun patient lié");
-                          return;
-                        }
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SecuritySettingsScreen(),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF9575CD), Color(0xFF7E57C2)],
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.security, color: Colors.white, size: 24),
-                            ),
-                            const SizedBox(width: 14),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Sécurité',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF2E5AAC),
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Biométrie',
                                     style: TextStyle(fontSize: 14, color: Colors.black54),
                                   ),
                                 ],

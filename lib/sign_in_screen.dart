@@ -313,9 +313,9 @@ class _SignInScreenState extends State<SignInScreen> {
                               side: const BorderSide(color: Color(0xFF64B5F6), width: 2),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                             ),
-                            icon: const Icon(Icons.fingerprint, color: Color(0xFF64B5F6)),
+                            icon: const Icon(Icons.face, color: Color(0xFF64B5F6)),
                             label: const Text(
-                              "Connexion biométrique",
+                              "Connexion par visage",
                               style: TextStyle(
                                 color: Color(0xFF64B5F6),
                                 fontSize: 16,
