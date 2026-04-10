@@ -104,9 +104,19 @@ class FCMService {
       playSound: true,
     );
 
+    const messagesChannel = AndroidNotificationChannel(
+      'alzhecare_messages',
+      'Messages',
+      description: 'Notifications de messages',
+      importance: Importance.high,
+      enableVibration: true,
+      playSound: true,
+    );
+
     await androidPlugin.createNotificationChannel(alertsChannel);
     await androidPlugin.createNotificationChannel(remindersChannel);
     await androidPlugin.createNotificationChannel(routineChannel);
+    await androidPlugin.createNotificationChannel(messagesChannel);
 
     debugPrint('[FCM] Canaux crees');
   }
@@ -253,6 +263,37 @@ class FCMService {
   static Future<void> stopListeningFirestoreAlerts() async {
     await _firestoreSubscription?.cancel();
     _firestoreSubscription = null;
+  }
+
+  static StreamSubscription? _patientNotifSubscription;
+
+  static Future<void> startListeningPatientNotifications(String patientUid) async {
+    debugPrint('[FCM] Ecoute notifications patient: $patientUid');
+
+    await _patientNotifSubscription?.cancel();
+
+    _patientNotifSubscription = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('recipientId', isEqualTo: patientUid)
+        .where('type', isEqualTo: 'chat_message')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .listen((snapshot) async {
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          if (data != null) {
+            await _showFirestoreNotification(change.doc.id, data);
+            await change.doc.reference.update({'isRead': true});
+          }
+        }
+      }
+    });
+  }
+
+  static Future<void> stopListeningPatientNotifications() async {
+    await _patientNotifSubscription?.cancel();
+    _patientNotifSubscription = null;
   }
 
   static Future<void> _showFirestoreNotification(
@@ -464,6 +505,8 @@ class FCMService {
         return 'alzhecare_reminders';
       case 'routine':
         return 'alzhecare_routine';
+      case 'chat_message':
+        return 'alzhecare_messages';
       default:
         return 'alzhecare_alerts';
     }
@@ -476,6 +519,8 @@ class FCMService {
         return 'Rappels';
       case 'routine':
         return 'Routine quotidienne';
+      case 'chat_message':
+        return 'Messages';
       default:
         return 'Alertes Urgentes';
     }
@@ -488,6 +533,8 @@ class FCMService {
         return 'Rappels medicaments et routines';
       case 'routine':
         return 'Notifications de routine';
+      case 'chat_message':
+        return 'Notifications de messages';
       default:
         return 'Alertes SOS, chutes et sorties de zone';
     }
