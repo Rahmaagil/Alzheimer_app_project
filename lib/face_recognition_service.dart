@@ -164,7 +164,7 @@ class FaceRecognitionService {
         }
       }
 
-      if (bestSimilarity > 0.6) {
+      if (bestSimilarity > 0.5) {
         print("[FaceRecognition] Reconnu: ${bestMatch!['name']} ($bestSimilarity)");
         return bestMatch;
       } else {
