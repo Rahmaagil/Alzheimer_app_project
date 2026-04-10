@@ -24,9 +24,6 @@ void main() async {
   await FaceRecognitionService.initialize();
   await BackgroundService.initialize();
 
-  // Injecter le navigatorKey dans le service de détection de chute
-  FallDetectionBackgroundService.navigatorKey = navigatorKey;
-
   final prefs = await SharedPreferences.getInstance();
 
   runApp(const MyApp());

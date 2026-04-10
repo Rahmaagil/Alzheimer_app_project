@@ -171,7 +171,8 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
       if (result != null && result['recognized'] == true) {
         final recognizedName = result['name'] as String?;
-        await _completeLogin(recognizedName);
+        final recognizedUid = result['uid'] as String?;  // UID retourné par recognizeFaceForLogin
+        await _completeLogin(recognizedName, recognizedUid);
       } else {
         setState(() {
           _error = 'Visage non reconnu. Veuillez réessayer.';
@@ -186,12 +187,15 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
     }
   }
 
-  Future<void> _completeLogin(String? recognizedName) async {
+  Future<void> _completeLogin(String? recognizedName, String? recognizedUid) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      // Priorité 1 : UID retourné directement par recognizeFaceForLogin
+      // Priorité 2 : currentUser si déjà connecté (cas email/pwd)
+      final uid = recognizedUid ?? FirebaseAuth.instance.currentUser?.uid;
+
+      if (uid == null) {
         setState(() {
-          _error = 'Erreur de connexion';
+          _error = 'Impossible d\'identifier le compte. Reconnectez-vous par email.';
           _isLoading = false;
         });
         return;
@@ -199,7 +203,7 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(uid)
           .get();
 
       if (!userDoc.exists) {

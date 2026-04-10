@@ -9,8 +9,16 @@ import 'package:flutter/material.dart';
 class FallDetectionService {
   static const int WINDOW_SIZE = 200;
   static const int NUM_SENSORS = 9;
-  static const int NUM_FEATURES = 90;
-  static const double FALL_THRESHOLD = 0.85;
+
+  // --- Seuils calibrés pour vraies chutes uniquement ---
+  // UserAccel au repos : ~0 m/s² | marche : 2-4 | course : 5-8 | chute : 15-40
+  static const double MIN_MAGNITUDE = 12.0;          // Filtre 1 : pic d'impact minimum
+  static const double POST_IMPACT_STILLNESS = 4.0;   // Filtre 2 : immobilité post-chute (moy)
+  static const double FALL_THRESHOLD = 0.90;         // Filtre 3 : confiance modèle TFLite
+  static const int CONFIRMATION_COUNT = 2;            // 2 fenêtres consécutives validées
+  static const int COOLDOWN_SECONDS = 30;             // 30s minimum entre deux alertes
+  static const int CONFIRMATION_WINDOW_SECONDS = 8;  // Fenêtre de confirmation
+  static const double GRAVITY = 9.81;                // Fallback émulateur
 
   Interpreter? _interpreter;
   List<double>? _scalerMean;
@@ -19,16 +27,21 @@ class FallDetectionService {
   final List<List<double>> _sensorBuffer = [];
   StreamSubscription? _accelSubscription;
   StreamSubscription? _gyroSubscription;
+  StreamSubscription? _userAccelSubscription;
 
   List<double>? _lastAccel;
   List<double>? _lastGyro;
+  List<double>? _lastUserAccel;
+
+  int _samplesSinceLastAnalysis = 0;
 
   bool isInitialized = false;
   bool _isMonitoring = false;
   bool isPaused = false;
 
   DateTime? _lastFallDetectionTime;
-  static const int COOLDOWN_SECONDS = 10;
+  int _consecutiveFallCount = 0;
+  DateTime? _firstSuspiciousWindowTime;
 
   Function(bool isFall, double confidence)? onFallDetected;
 
@@ -54,16 +67,20 @@ class FallDetectionService {
     _sensorBuffer.clear();
     isPaused = false;
     _lastFallDetectionTime = null;
+    _samplesSinceLastAnalysis = 0;
 
     debugPrint('[FallDetection] Démarrage surveillance');
 
-    _accelSubscription = accelerometerEvents.listen((event) {
-      _lastAccel = [event.x, event.y, event.z];
-      _addSensorData();
-    });
-
     _gyroSubscription = gyroscopeEvents.listen((event) {
       _lastGyro = [event.x, event.y, event.z];
+    });
+
+    _userAccelSubscription = userAccelerometerEvents.listen((event) {
+      _lastUserAccel = [event.x, event.y, event.z];
+    });
+
+    _accelSubscription = accelerometerEvents.listen((event) {
+      _lastAccel = [event.x, event.y, event.z];
       _addSensorData();
     });
   }
@@ -72,6 +89,7 @@ class FallDetectionService {
     _isMonitoring = false;
     _accelSubscription?.cancel();
     _gyroSubscription?.cancel();
+    _userAccelSubscription?.cancel();
     _sensorBuffer.clear();
     debugPrint('[FallDetection] Surveillance arrêtée');
   }
@@ -88,9 +106,13 @@ class FallDetectionService {
   }
 
   void _addSensorData() {
-    if (_lastAccel == null || _lastGyro == null || isPaused) return;
+    if (_lastAccel == null || isPaused) return;
 
-    final data = [..._lastAccel!, ..._lastGyro!, ..._lastAccel!];
+    // Zéros par défaut si gyro/userAccel absents (compatibilité émulateur)
+    final gyro = _lastGyro ?? [0.0, 0.0, 0.0];
+    final userAccel = _lastUserAccel ?? [0.0, 0.0, 0.0];
+
+    final data = [..._lastAccel!, ...gyro, ...userAccel];
     _sensorBuffer.add(data);
 
     if (_sensorBuffer.length > WINDOW_SIZE + 100) {
@@ -98,43 +120,114 @@ class FallDetectionService {
     }
 
     if (_sensorBuffer.length >= WINDOW_SIZE) {
-      _analyzeWindow();
+      _samplesSinceLastAnalysis++;
+      if (_samplesSinceLastAnalysis >= 50) {
+        _analyzeWindow();
+        _samplesSinceLastAnalysis = 0;
+      }
     }
   }
 
   void _analyzeWindow() {
     if (isPaused) return;
 
-    if (_lastFallDetectionTime != null) {
-      final timeSinceLastDetection = DateTime.now().difference(_lastFallDetectionTime!);
-      if (timeSinceLastDetection.inSeconds < COOLDOWN_SECONDS) {
-        return;
-      }
+    // Cooldown post-chute
+    if (_lastFallDetectionTime != null &&
+        DateTime.now().difference(_lastFallDetectionTime!).inSeconds < COOLDOWN_SECONDS) {
+      return;
+    }
+
+    // Timeout de la fenêtre de confirmation
+    if (_firstSuspiciousWindowTime != null &&
+        DateTime.now().difference(_firstSuspiciousWindowTime!).inSeconds > CONFIRMATION_WINDOW_SECONDS) {
+      _consecutiveFallCount = 0;
+      _firstSuspiciousWindowTime = null;
+      debugPrint('[FallDetection] Timeout confirmation, reset');
     }
 
     try {
       final window = _sensorBuffer.sublist(_sensorBuffer.length - WINDOW_SIZE);
+
+      // ══ FILTRE 1 : Pic d'impact ══════════════════════════════════════════
+      // Une vraie chute génère un pic UserAccel > 12 m/s² (marche max ~4, course ~8)
+      final peakMag = _calculateMagnitude(window);
+      if (peakMag < MIN_MAGNITUDE) return;
+
+      // ══ FILTRE 2 : Immobilité post-impact ═══════════════════════════════
+      // Après une chute, la personne est au sol → mouvement faible ensuite
+      // Après un ADL brusque (s'asseoir, taper, sauter), le mouvement continue
+      final recentSamples = window.sublist(window.length - 20);
+      final meanRecentMag = _calculateMeanMagnitude(recentSamples);
+      if (meanRecentMag > POST_IMPACT_STILLNESS) {
+        debugPrint('[FallDetection] Mouvement continu post-pic (${meanRecentMag.toStringAsFixed(1)} m/s²) → ADL ignoré');
+        return;
+      }
+
+      // ══ FILTRE 3 : Modèle TFLite ════════════════════════════════════════
       final features = _extractFeatures(window);
       final normalizedFeatures = _normalizeFeatures(features);
-
       final input = [normalizedFeatures];
       final output = List.filled(1 * 2, 0.0).reshape([1, 2]);
-
       _interpreter!.run(input, output);
 
-      final probADL = output[0][0];
       final probFall = output[0][1];
-
-      debugPrint('[FallDetection] Analyse: ADL=${probADL.toStringAsFixed(3)}, Fall=${probFall.toStringAsFixed(3)}');
+      debugPrint('[FallDetection] Pic=${peakMag.toStringAsFixed(1)} Still=${meanRecentMag.toStringAsFixed(1)} Fall=${probFall.toStringAsFixed(3)}');
 
       if (probFall > FALL_THRESHOLD) {
-        debugPrint('[FallDetection] CHUTE DÉTECTÉE! Confiance: ${probFall.toStringAsFixed(3)}');
-        _lastFallDetectionTime = DateTime.now();
-        onFallDetected?.call(true, probFall);
+        if (_consecutiveFallCount == 0) _firstSuspiciousWindowTime = DateTime.now();
+        _consecutiveFallCount++;
+        debugPrint('[FallDetection] Détection #$_consecutiveFallCount/$CONFIRMATION_COUNT');
+
+        if (_consecutiveFallCount >= CONFIRMATION_COUNT) {
+          debugPrint('[FallDetection] ✅ CHUTE CONFIRMÉE! Confiance: ${probFall.toStringAsFixed(3)}');
+          _lastFallDetectionTime = DateTime.now();
+          _consecutiveFallCount = 0;
+          _firstSuspiciousWindowTime = null;
+          onFallDetected?.call(true, probFall);
+        }
+      } else {
+        if (_consecutiveFallCount > 0) debugPrint('[FallDetection] Modèle non convaincu, reset');
+        _consecutiveFallCount = 0;
+        _firstSuspiciousWindowTime = null;
       }
     } catch (e) {
       debugPrint('[FallDetection] Erreur analyse: $e');
     }
+  }
+
+  /// UserAccel [6,7,8] (sans gravité) en priorité.
+  /// Fallback sur |rawAccel| - gravity si UserAccel ≈ 0 (=émulateur).
+  double _calculateMagnitude(List<List<double>> window) {
+    if (window.isEmpty) return 0;
+    double maxUserAccel = 0;
+    double maxRawDelta = 0;
+    for (var s in window) {
+      if (s.length >= 9) {
+        final ua = sqrt(s[6]*s[6] + s[7]*s[7] + s[8]*s[8]);
+        if (ua > maxUserAccel) maxUserAccel = ua;
+        final raw = sqrt(s[0]*s[0] + s[1]*s[1] + s[2]*s[2]);
+        final delta = (raw - GRAVITY).abs();
+        if (delta > maxRawDelta) maxRawDelta = delta;
+      }
+    }
+    return maxUserAccel > 0.5 ? maxUserAccel : maxRawDelta;
+  }
+
+  /// Magnitude MOYENNE des n derniers échantillons (utilisée pour détection d'immobilité).
+  double _calculateMeanMagnitude(List<List<double>> window) {
+    if (window.isEmpty) return 0;
+    double total = 0;
+    int count = 0;
+    for (var s in window) {
+      if (s.length >= 9) {
+        final ua = sqrt(s[6]*s[6] + s[7]*s[7] + s[8]*s[8]);
+        final raw = sqrt(s[0]*s[0] + s[1]*s[1] + s[2]*s[2]);
+        final delta = (raw - GRAVITY).abs();
+        total += ua > 0.5 ? ua : delta;
+        count++;
+      }
+    }
+    return count > 0 ? total / count : 0;
   }
 
   List<double> _extractFeatures(List<List<double>> window) {

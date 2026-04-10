@@ -251,12 +251,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
       if (widget.isRegistrationMode) {
         await _showNameDialog(embedding, imagePath);
       } else {
-        final result = await FaceRecognitionService.recognizeFace(embedding);
+        // Mode login : cherche dans TOUS les patients (pas seulement l'utilisateur courant)
+        final result = await FaceRecognitionService.recognizeFaceForLogin(embedding);
 
         if (result != null) {
           _showRecognitionResult(result);
         } else {
-          _showError("Visage inconnu");
+          _showError("Visage non reconnu. Assurez-vous d'avoir enregistré votre visage.");
         }
       }
     } catch (e) {
@@ -397,7 +398,11 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.pop(context, {'recognized': true, 'name': result['name']});
+              Navigator.pop(context, {
+                'recognized': true,
+                'name': result['name'],
+                'uid': result['uid'],  // Transmet l'uid pour que face_login_screen connecte le bon patient
+              });
             },
             child: const Text("OK"),
           ),

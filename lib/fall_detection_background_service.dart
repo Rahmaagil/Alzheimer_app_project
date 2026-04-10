@@ -2,109 +2,139 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'fall_detection_service.dart';
+import 'package:alzhecare/main.dart' show navigatorKey;
 
 class FallDetectionBackgroundService {
-  /// NavigatorKey global injecté depuis main.dart
-  static GlobalKey<NavigatorState>? navigatorKey;
-
   static FallDetectionService? _fallService;
   static bool _isRunning = false;
   static bool _isProcessingFall = false;
+  static BuildContext? _appContext;
 
-  /// Démarre la surveillance en arrière-plan pour un patient
+  static bool get isRunning => _isRunning;
+
+  static void setContext(BuildContext context) {
+    _appContext = context;
+    debugPrint('[BgFallDetection] Context defini');
+  }
+
   static Future<void> startForPatient() async {
+    debugPrint('[BgFallDetection] Tentative demarrage...');
+
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      debugPrint('[BgFallDetection] Pas d\'utilisateur connecte');
+      return;
+    }
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    final role = userDoc.data()?['role'];
-    if (role != 'patient') return;
-
-    if (_isRunning) return;
-
-    _fallService = FallDetectionService();
     try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final role = userDoc.data()?['role'];
+      if (role != 'patient') {
+        debugPrint('[BgFallDetection] Utilisateur n\'est pas un patient, role: $role');
+        return;
+      }
+
+      if (_isRunning) {
+        debugPrint('[BgFallDetection] Service deja en cours');
+        return;
+      }
+
+      _fallService = FallDetectionService();
       await _fallService!.initialize();
+
+      _fallService!.onFallDetected = (isFall, confidence) {
+        debugPrint('[BgFallDetection] Callback recu: isFall=$isFall, confidence=$confidence');
+        if (isFall) {
+          _showFallConfirmationDialog(confidence);
+        }
+      };
+
+      _fallService!.startMonitoring();
+      _isRunning = true;
+      debugPrint('[BgFallDetection] Service demarre avec succes');
     } catch (e) {
-      print('[BgFallDetection] Erreur initialisation: $e');
-      _fallService = null;
-      return;
+      debugPrint('[BgFallDetection] Erreur demarrage: $e');
+      _isRunning = false;
     }
-
-    _fallService!.onFallDetected = (isFall, confidence) {
-      if (isFall && !_isProcessingFall) {
-        _handleFallDetected(confidence);
-      }
-    };
-
-    _fallService!.startMonitoring();
-    _isRunning = true;
-    print('[BgFallDetection] Service démarré en arrière-plan');
   }
 
-  /// Gère la détection d'une chute : affiche le dialog de confirmation au patient
-  static void _handleFallDetected(double confidence) async {
-    if (_isProcessingFall) return;
+  static void _showFallConfirmationDialog(double confidence) {
+    // Verrou : empêcher l'empilement de plusieurs dialogs
+    if (_isProcessingFall) {
+      debugPrint('[BgFallDetection] Déjà en traitement, dialog ignoré');
+      return;
+    }
     _isProcessingFall = true;
-
     _fallService?.pauseDetection();
-    print('[BgFallDetection] Chute détectée, affichage dialog confirmation');
 
-    final ctx = navigatorKey?.currentContext;
-    if (ctx == null) {
-      // Pas de contexte disponible → envoyer alerte automatiquement
-      print('[BgFallDetection] Pas de contexte, envoi alerte auto');
-      await _sendFallAlert(confidence, 'auto');
-      _isProcessingFall = false;
-      _fallService?.resumeDetection();
+    // Utilise navigatorKey.currentContext en fallback si _appContext est invalide
+    final context = (_appContext != null && _appContext!.mounted)
+        ? _appContext!
+        : navigatorKey.currentContext;
+
+    if (context == null) {
+      debugPrint('[BgFallDetection] Pas de context disponible, envoi alerte automatique');
+      _sendAutomaticFallAlert(confidence);
       return;
     }
 
-    try {
-      final result = await Navigator.of(ctx, rootNavigator: true).push<bool>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => _FallConfirmationScreen(confidence: confidence),
-        ),
-      );
-
-      if (result == true) {
-        // Patient confirme avoir besoin d'aide
-        await _sendFallAlert(confidence, 'patient');
-      } else if (result == null) {
-        // Timer expiré → alerte automatique
-        await _sendFallAlert(confidence, 'auto');
-      }
-      // result == false → Patient dit "je vais bien" → aucune alerte
-    } catch (e) {
-      print('[BgFallDetection] Erreur dialog: $e');
-      await _sendFallAlert(confidence, 'auto');
-    } finally {
-      _isProcessingFall = false;
-      await Future.delayed(const Duration(seconds: 5));
-      _fallService?.resumeDetection();
-    }
+    debugPrint('[BgFallDetection] Affichage dialog confirmation');
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _FallConfirmationDialog(
+        confidence: confidence,
+        onConfirm: (needHelp) async {
+          Navigator.of(dialogContext).pop();
+          if (needHelp) {
+            debugPrint('[BgFallDetection] Patient demande aide');
+            await _sendAutomaticFallAlert(confidence);
+          } else {
+            debugPrint('[BgFallDetection] Patient va bien');
+            _isProcessingFall = false;
+            _fallService?.resumeDetection();
+            final ctx = (_appContext != null && _appContext!.mounted)
+                ? _appContext!
+                : navigatorKey.currentContext;
+            if (ctx != null) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: const [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('Vous allez bien'),
+                    ],
+                  ),
+                  backgroundColor: Colors.green.shade600,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        },
+      ),
+    );
   }
 
-  /// Envoie une notification de chute à tous les caregivers liés
-  static Future<void> _sendFallAlert(double confidence, String confirmedBy) async {
+  static Future<void> _sendAutomaticFallAlert(double confidence) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
-      print('[BgFallDetection] Envoi alerte chute (confirmedBy: $confirmedBy)');
+      debugPrint('[BgFallDetection] Envoi alerte automatique, confidence=$confidence');
 
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
-      final patientName = userDoc.data()?['name'] ?? 'Patient';
       final linkedCaregiversRaw = userDoc.data()?['linkedCaregivers'];
 
       List<String> linkedCaregivers = [];
@@ -116,125 +146,102 @@ class FallDetectionBackgroundService {
       }
 
       if (linkedCaregivers.isEmpty) {
-        print('[BgFallDetection] Aucun caregiver lié');
+        debugPrint('[BgFallDetection] Aucun caregiver lie');
         return;
       }
 
-      // Récupérer la dernière position GPS depuis lastPosition
-      double? latitude;
-      double? longitude;
+      GeoPoint? location;
+      double? latitude, longitude;
 
       try {
-        final lastPosition = userDoc.data()?['lastPosition'] as Map<String, dynamic>?;
-        if (lastPosition != null) {
-          latitude = lastPosition['latitude'] as double?;
-          longitude = lastPosition['longitude'] as double?;
-          print('[BgFallDetection] Position récupérée: $latitude, $longitude');
-        } else {
-          // Fallback: essayer de récupérer depuis la sous-collection locations
-          final locationDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('locations')
-              .orderBy('timestamp', descending: true)
-              .limit(1)
-              .get();
+        final locationDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('locations')
+            .orderBy('timestamp', descending: true)
+            .limit(1)
+            .get();
 
-          if (locationDoc.docs.isNotEmpty) {
-            final locationData = locationDoc.docs.first.data();
-            final location = locationData['location'] as GeoPoint?;
-            if (location != null) {
-              latitude = location.latitude;
-              longitude = location.longitude;
-            }
+        if (locationDoc.docs.isNotEmpty) {
+          location = locationDoc.docs.first.data()['location'] as GeoPoint?;
+          if (location != null) {
+            latitude = location.latitude;
+            longitude = location.longitude;
           }
         }
       } catch (e) {
-        print('[BgFallDetection] Erreur récupération position: $e');
+        debugPrint('[BgFallDetection] Erreur position: $e');
       }
 
-      // Envoyer la notification à chaque caregiver
       for (final caregiverId in linkedCaregivers) {
         try {
           await FirebaseFirestore.instance.collection('notifications').add({
             'caregiverId': caregiverId,
             'patientId': user.uid,
-            'patientName': patientName,
             'type': 'fall',
-            'title': 'Alerte Chute Détectée',
-            'message': confirmedBy == 'patient'
-                ? '$patientName a confirmé être tombé(e) (${(confidence * 100).toStringAsFixed(0)}% confiance)'
-                : '$patientName — Chute détectée automatiquement (${(confidence * 100).toStringAsFixed(0)}% confiance)',
+            'title': 'Alerte Chute Detectee',
+            'message': 'Chute detectee avec ${(confidence * 100).toStringAsFixed(0)}% de confiance',
+            'location': location,
             'timestamp': FieldValue.serverTimestamp(),
             'status': 'pending',
             'confidence': confidence,
-            'confirmed': confirmedBy,
+            'confirmed': 'patient',
             'latitude': latitude,
             'longitude': longitude,
-            'isRead': false,
           });
-          print('[BgFallDetection] Notification envoyée à caregiver: $caregiverId');
+          debugPrint('[BgFallDetection] Notification envoyee a $caregiverId');
         } catch (e) {
-          print('[BgFallDetection] Erreur envoi à $caregiverId: $e');
+          debugPrint('[BgFallDetection] Erreur envoi notification: $e');
         }
       }
     } catch (e) {
-      print('[BgFallDetection] Erreur générale: $e');
+      debugPrint('[BgFallDetection] Erreur generale: $e');
     }
+
+    // Toujours relâcher le verrou et reprendre la détection après l'envoi,
+    // peu importe l'état du context - sinon le service reste bloqué indéfiniment.
+    await Future.delayed(const Duration(seconds: 15));
+    _isProcessingFall = false;
+    _fallService?.resumeDetection();
   }
 
-  /// Retourne l'instance du service de détection (pour PatientFallMonitorScreen)
-  static FallDetectionService? get fallService => _fallService;
-
-  /// Vérifie si le service est actif
-  static bool get isRunning => _isRunning;
-
-  /// Pause la détection (appelé depuis PatientFallMonitorScreen)
-  static void pauseDetection() => _fallService?.pauseDetection();
-
-  /// Reprend la détection (appelé depuis PatientFallMonitorScreen)
-  static void resumeDetection() => _fallService?.resumeDetection();
+  /// À utiliser uniquement en mode debug pour tester le dialog sur émulateur
+  static void simulateFallForTest() {
+    debugPrint('[BgFallDetection] ⚠️ SIMULATION CHUTE (DEBUG)');
+    _showFallConfirmationDialog(0.99);
+  }
 
   static void stop() {
     _fallService?.stopMonitoring();
     _fallService?.dispose();
     _fallService = null;
     _isRunning = false;
-    _isProcessingFall = false;
-    print('[BgFallDetection] Service arrêté');
+    debugPrint('[BgFallDetection] Service arrete');
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Widget : Dialog de confirmation chute (affiché au patient)
-// ─────────────────────────────────────────────────────────────
-
-class _FallConfirmationScreen extends StatefulWidget {
+class _FallConfirmationDialog extends StatefulWidget {
   final double confidence;
-  const _FallConfirmationScreen({required this.confidence});
+  final Function(bool needHelp) onConfirm;
+
+  const _FallConfirmationDialog({
+    required this.confidence,
+    required this.onConfirm,
+  });
 
   @override
-  State<_FallConfirmationScreen> createState() => _FallConfirmationScreenState();
+  State<_FallConfirmationDialog> createState() => _FallConfirmationDialogState();
 }
 
-class _FallConfirmationScreenState extends State<_FallConfirmationScreen>
-    with SingleTickerProviderStateMixin {
+class _FallConfirmationDialogState extends State<_FallConfirmationDialog> {
   int _secondsRemaining = 30;
   Timer? _timer;
   bool _hasResponded = false;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
+    debugPrint('[FallDialog] Ouverture, confidence=${widget.confidence}');
     _startTimer();
   }
 
@@ -247,189 +254,158 @@ class _FallConfirmationScreenState extends State<_FallConfirmationScreen>
       setState(() => _secondsRemaining--);
       if (_secondsRemaining <= 0) {
         timer.cancel();
-        _respond(null); // timer expiré = alerte auto
+        _respond(true);
       }
     });
   }
 
-  void _respond(bool? needHelp) {
+  void _respond(bool needHelp) {
     if (_hasResponded) return;
+    debugPrint('[FallDialog] Reponse: needHelp=$needHelp');
     setState(() => _hasResponded = true);
     _timer?.cancel();
-    if (mounted) Navigator.of(context).pop(needHelp);
+    widget.onConfirm(needHelp);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final pct = (_secondsRemaining / 30).clamp(0.0, 1.0);
-
-    return WillPopScope(
-      onWillPop: () async => false,
-      child: Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Dialog(
         backgroundColor: const Color(0xFFFFEBEE),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Icône pulsante
-                ScaleTransition(
-                  scale: _pulseAnimation,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF5F6D), Color(0xFFFF2E63)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF5F6D).withOpacity(0.5),
-                          blurRadius: 30,
-                          spreadRadius: 10,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.warning_amber_rounded, size: 70, color: Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF5F6D), Color(0xFFFF2E63)],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF5F6D).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
                 ),
-
-                const SizedBox(height: 36),
-
-                const Text(
-                  'Chute Détectée !',
-                  style: TextStyle(
-                    fontSize: 34,
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 50,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Chute Detectee!',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFD32F2F),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _hasResponded ? 'Traitement...' : '$_secondsRemaining secondes',
+                  style: const TextStyle(
+                    fontSize: 40,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFD32F2F),
                   ),
                 ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Confiance : ${(widget.confidence * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
-                ),
-
-                const SizedBox(height: 28),
-
-                // Compte à rebours avec cercle de progression
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: CircularProgressIndicator(
-                        value: pct,
-                        strokeWidth: 8,
-                        backgroundColor: Colors.red.shade100,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          pct > 0.5 ? const Color(0xFF66BB6A) : const Color(0xFFFF5F6D),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Allez-vous bien?',
+                style: TextStyle(fontSize: 20, color: Colors.black87),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton(
+                  onPressed: _hasResponded ? null : () => _respond(false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _hasResponded ? Colors.grey : const Color(0xFF66BB6A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: _hasResponded ? 0 : 6,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 28,
+                        color: _hasResponded ? Colors.grey.shade600 : Colors.white,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'JE VAIS BIEN',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: _hasResponded ? Colors.grey.shade600 : Colors.white,
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton(
+                  onPressed: _hasResponded ? null : () => _respond(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _hasResponded ? Colors.grey : const Color(0xFFFF5F6D),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    Text(
-                      _hasResponded ? '...' : '$_secondsRemaining',
-                      style: const TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFD32F2F),
+                    elevation: _hasResponded ? 0 : 6,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.sos,
+                        size: 28,
+                        color: _hasResponded ? Colors.grey.shade600 : Colors.white,
                       ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 28),
-
-                const Text(
-                  'Allez-vous bien ?',
-                  style: TextStyle(fontSize: 24, color: Colors.black87, fontWeight: FontWeight.w600),
-                ),
-
-                const SizedBox(height: 12),
-
-                Text(
-                  'Si aucune réponse dans $_secondsRemaining sec,\nune alerte sera envoyée automatiquement.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: Colors.black45),
-                ),
-
-                const SizedBox(height: 40),
-
-                // Bouton JE VAIS BIEN
-                SizedBox(
-                  width: double.infinity,
-                  height: 68,
-                  child: ElevatedButton(
-                    onPressed: _hasResponded ? null : () => _respond(false),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasResponded ? Colors.grey : const Color(0xFF66BB6A),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      elevation: _hasResponded ? 0 : 6,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle, size: 30,
-                            color: _hasResponded ? Colors.grey.shade400 : Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          'JE VAIS BIEN',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: _hasResponded ? Colors.grey.shade400 : Colors.white,
-                          ),
+                      const SizedBox(width: 10),
+                      Text(
+                        "J'AI BESOIN D'AIDE",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: _hasResponded ? Colors.grey.shade600 : Colors.white,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-
-                const SizedBox(height: 16),
-
-                // Bouton J'AI BESOIN D'AIDE
-                SizedBox(
-                  width: double.infinity,
-                  height: 68,
-                  child: ElevatedButton(
-                    onPressed: _hasResponded ? null : () => _respond(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasResponded ? Colors.grey : const Color(0xFFFF5F6D),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      elevation: _hasResponded ? 0 : 6,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.sos, size: 30,
-                            color: _hasResponded ? Colors.grey.shade400 : Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          "J'AI BESOIN D'AIDE",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: _hasResponded ? Colors.grey.shade400 : Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

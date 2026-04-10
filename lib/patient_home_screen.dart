@@ -27,7 +27,7 @@ class PatientHomeScreen extends StatefulWidget {
   State<PatientHomeScreen> createState() => _PatientHomeScreenState();
 }
 
-class _PatientHomeScreenState extends State<PatientHomeScreen> {
+class _PatientHomeScreenState extends State<PatientHomeScreen> with WidgetsBindingObserver {
 
   String patientName = "Patient";
   bool isLoading = true;
@@ -35,8 +35,22 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserData();
     _startBackgroundServices();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) FallDetectionBackgroundService.setContext(context);
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -64,6 +78,10 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
 
   Future<void> _startBackgroundServices() async {
     try {
+      // setContext AVANT startForPatient pour garantir que le dialog peut s'afficher
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) FallDetectionBackgroundService.setContext(context);
+      });
       await GeofencingService.startTracking(intervalMinutes: 10);
       await ContinuousBackgroundService.startForPatient();
       await FallDetectionBackgroundService.startForPatient();

@@ -147,11 +147,8 @@ class FaceRecognitionService {
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final savedEmbedding = List<double>.from(data['embedding']);
-
         final similarity = calculateSimilarity(embedding, savedEmbedding);
-
         print("[FaceRecognition] ${data['name']}: $similarity");
-
         if (similarity > bestSimilarity) {
           bestSimilarity = similarity;
           bestMatch = {
@@ -174,6 +171,69 @@ class FaceRecognitionService {
 
     } catch (e) {
       print("[FaceRecognition] Erreur reconnaissance: $e");
+      return null;
+    }
+  }
+
+  /// Login par visage : parcourt TOUS les patients pour trouver
+  /// celui dont le visage 'self' correspond à l'embedding fourni.
+  /// Retourne {uid, name, similarity} si trouvé, sinon null.
+  static Future<Map<String, dynamic>?> recognizeFaceForLogin(List<double> embedding) async {
+    try {
+      // Récupère tous les users avec role='patient'
+      final usersSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'patient')
+          .get();
+
+      if (usersSnapshot.docs.isEmpty) {
+        print('[FaceRecognition] Aucun patient trouvé en base');
+        return null;
+      }
+
+      double bestSimilarity = 0.0;
+      Map<String, dynamic>? bestMatch;
+
+      for (var userDoc in usersSnapshot.docs) {
+        final uid = userDoc.id;
+
+        // Cherche uniquement le visage self (propre visage du patient)
+        final prochesSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('proches')
+            .where('relation', isEqualTo: 'self')
+            .get();
+
+        for (var doc in prochesSnapshot.docs) {
+          final data = doc.data();
+          final savedEmbedding = List<double>.from(data['embedding']);
+          final similarity = calculateSimilarity(embedding, savedEmbedding);
+
+          print('[FaceRecognition] Patient $uid (${data['name']}): similarité=$similarity');
+
+          if (similarity > bestSimilarity) {
+            bestSimilarity = similarity;
+            bestMatch = {
+              'uid': uid,
+              'name': data['name'],
+              'similarity': similarity,
+              'email': userDoc.data()['email'] ?? '',
+            };
+          }
+        }
+      }
+
+      // Seuil plus strict pour le login (0.65 pour éviter les faux positifs)
+      if (bestSimilarity > 0.65) {
+        print('[FaceRecognition] Patient reconnu pour login: ${bestMatch!['uid']} ($bestSimilarity)');
+        return bestMatch;
+      } else {
+        print('[FaceRecognition] Aucun patient reconnu pour login (meilleur: $bestSimilarity)');
+        return null;
+      }
+    } catch (e) {
+      print('[FaceRecognition] Erreur recognizeFaceForLogin: $e');
       return null;
     }
   }

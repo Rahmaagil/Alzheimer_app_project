@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'fall_detection_background_service.dart';
@@ -20,6 +21,8 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen>
   }
 
   Future<void> _startService() async {
+    // Fournir le context AVANT de démarrer le service pour que le dialog puisse s'afficher
+    if (mounted) FallDetectionBackgroundService.setContext(context);
     await FallDetectionBackgroundService.startForPatient();
     if (mounted) setState(() {});
   }
@@ -191,6 +194,33 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen>
                                   ],
                                 ),
                               ),
+                              // Bouton de test visible uniquement en mode debug
+                              if (kDebugMode) ...[  
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isMonitoring ? () {
+                                      FallDetectionBackgroundService.simulateFallForTest();
+                                    } : null,
+                                    icon: const Icon(Icons.bug_report, color: Color(0xFFFF5722)),
+                                    label: const Text(
+                                      'SIMULER UNE CHUTE (DEBUG)',
+                                      style: TextStyle(
+                                        color: Color(0xFFFF5722),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFFF5722)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
