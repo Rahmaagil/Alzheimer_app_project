@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'theme.dart';
 import 'fall_detection_background_service.dart';
 
 class PatientFallMonitorScreen extends StatefulWidget {
-  const PatientFallMonitorScreen({Key? key}) : super(key: key);
+  const PatientFallMonitorScreen({super.key});
 
   @override
   State<PatientFallMonitorScreen> createState() => _PatientFallMonitorScreenState();
@@ -15,6 +16,12 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startService();
+  }
+
+  Future<void> _startService() async {
+    await FallDetectionBackgroundService.startForPatient();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -27,8 +34,8 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => true,
+    return PopScope(
+      canPop: true,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -48,147 +55,152 @@ class _PatientFallMonitorScreenState extends State<PatientFallMonitorScreen>
           ),
           centerTitle: true,
         ),
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _StatusIcon(isActive: _isMonitoring),
-                          const SizedBox(height: 24),
-                          Text(
-                            _isMonitoring
-                                ? 'Surveillance Active'
-                                : 'Service Inactif',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5AAC),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _isMonitoring 
-                                  ? const Color(0xFF66BB6A).withValues(alpha: 0.1)
-                                  : const Color(0xFFFF9800).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: _isMonitoring 
-                                    ? const Color(0xFF66BB6A)
-                                    : const Color(0xFFFF9800),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _isMonitoring ? Icons.check_circle : Icons.warning_amber_rounded,
-                                  color: _isMonitoring ? const Color(0xFF66BB6A) : const Color(0xFFFF9800),
-                                  size: 20,
+        body: Stack(
+          children: [
+            AppDecorationWidgets.buildDecoCircles(),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _StatusIcon(isActive: _isMonitoring),
+                              const SizedBox(height: 24),
+                              Text(
+                                _isMonitoring
+                                    ? 'Surveillance Active'
+                                    : 'Service Inactif',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2E5AAC),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _isMonitoring ? 'Vous êtes protégé(e)' : 'Service non démarré',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: _isMonitoring ? const Color(0xFF66BB6A) : const Color(0xFFFF9800),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _isMonitoring
+                                      ? const Color(0xFF66BB6A).withValues(alpha: 0.1)
+                                      : const Color(0xFFFF9800).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: _isMonitoring
+                                        ? const Color(0xFF66BB6A)
+                                        : const Color(0xFFFF9800),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 10),
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                const Row(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.info_outline, color: Color(0xFF4A90E2)),
-                                    SizedBox(width: 12),
+                                    Icon(
+                                      _isMonitoring ? Icons.check_circle : Icons.warning_amber_rounded,
+                                      color: _isMonitoring ? const Color(0xFF66BB6A) : const Color(0xFFFF9800),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      'Comment ça fonctionne ?',
+                                      _isMonitoring ? 'Vous êtes protégé(e)' : 'Service non démarré',
                                       style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF2E5AAC),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isMonitoring ? const Color(0xFF66BB6A) : const Color(0xFFFF9800),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  '• Surveillance continue en arrière-plan\n'
-                                  '• En cas de chute : 30 secondes pour répondre\n'
-                                  '• Bouton "Je vais bien" annule l\'alerte\n'
-                                  '• Pas de réponse → alerte automatique',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[700]!,
-                                    height: 1.8,
-                                  ),
+                              ),
+                              const SizedBox(height: 32),
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 10),
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.05),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 5),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.layers, color: Color(0xFF4A90E2), size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Actif en arrière-plan',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF4A90E2),
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                child: Column(
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Icon(Icons.info_outline, color: Color(0xFF4A90E2)),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Comment ça fonctionne ?',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2E5AAC),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      '• Surveillance continue en arrière-plan\n'
+                                          '• En cas de chute : 30 secondes pour répondre\n'
+                                          '• Bouton "Je vais bien" annule l\'alerte\n'
+                                          '• Pas de réponse → alerte automatique',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[700]!,
+                                        height: 1.8,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 24),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.layers, color: Color(0xFF4A90E2), size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Actif en arrière-plan',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF4A90E2),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme.dart';
 import 'face_recognition_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -95,28 +96,33 @@ class _SavedFacesScreenState extends State<SavedFacesScreen> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _faces.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: _faces.length,
+              itemBuilder: (context, index) {
+                final face = _faces[index];
+                return _buildFaceCard(face);
+              },
+            ),
           ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _faces.isEmpty
-            ? _buildEmptyState()
-            : ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: _faces.length,
-          itemBuilder: (context, index) {
-            final face = _faces[index];
-            return _buildFaceCard(face);
-          },
-        ),
+        ],
       ),
     );
   }

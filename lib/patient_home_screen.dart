@@ -17,6 +17,7 @@ import 'package:geolocator/geolocator.dart';
 import 'smart_recognition_screen.dart';
 import 'geofencing_service.dart';
 import 'continuous_background_service.dart';
+import 'fall_detection_background_service.dart';
 
 class PatientHomeScreen extends StatefulWidget {
   const PatientHomeScreen({super.key});
@@ -64,6 +65,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
     try {
       await GeofencingService.startTracking(intervalMinutes: 10);
       await ContinuousBackgroundService.startForPatient();
+      await FallDetectionBackgroundService.startForPatient();
       debugPrint("[PatientHome] Services background démarrés");
     } catch (e) {
       debugPrint("[PatientHome] Erreur démarrage services: $e");
@@ -298,6 +300,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
 
     try {
       await GeofencingService.stopTracking();
+      FallDetectionBackgroundService.stop();
       await FirebaseAuth.instance.signOut();
 
       if (mounted) {
@@ -327,13 +330,15 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
         backgroundColor: const Color(0xFF4A90E2),
         child: const Icon(Icons.chat, color: Colors.white),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Column(
-            children: [
-
-              Row(
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Column(
+                children: [
+                  Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
@@ -659,9 +664,11 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
               ),
 
               const SizedBox(height: 30),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -802,7 +809,7 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> {
                             ElevatedButton(
                               onPressed: () => Navigator.pop(ctx),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4A90E2),
+backgroundColor: const Color(0xFF64B5F6),
                               ),
                               child: const Text(
                                 "OK",

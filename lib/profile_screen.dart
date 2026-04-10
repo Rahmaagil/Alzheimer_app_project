@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'security_settings_screen.dart';
+import 'theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -70,288 +71,273 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _loadProfile,
-            color: const Color(0xFF4A90E2),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-
-                  // Avatar
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF4A90E2).withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.white,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Text(
-                    _profileData?['name'] ?? "Mon nom",
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2E5AAC),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Section informations generales
-                  _buildSectionCard(
-                    'Informations generales',
-                    Icons.person_outline,
-                    [
-                      if ((_profileData?['age'] ?? 0) > 0)
-                        _buildInfoRow(
-                          Icons.cake_outlined,
-                          'Age',
-                          '${_profileData!['age']} ans',
-                          const Color(0xFF66BB6A),
-                        ),
-                      if ((_profileData?['diseaseStage'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.medical_information_outlined,
-                          'Stade de la maladie',
-                          _profileData!['diseaseStage'],
-                          const Color(0xFF4A90E2),
-                        ),
-                      if ((_profileData?['homeAddress'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.home_outlined,
-                          'Domicile',
-                          _profileData!['homeAddress'],
-                          const Color(0xFFFFB74D),
-                        ),
-                      if ((_profileData?['caregiverPhone'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.phone_outlined,
-                          'Telephone proche',
-                          _profileData!['caregiverPhone'],
-                          const Color(0xFF66BB6A),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Section informations medicales
-                  _buildSectionCard(
-                    'Informations medicales',
-                    Icons.medical_services_outlined,
-                    [
-                      if ((_profileData?['doctor'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.medical_services_outlined,
-                          'Medecin referent',
-                          _profileData!['doctor'],
-                          const Color(0xFF4A90E2),
-                        ),
-                      if ((_profileData?['treatment'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.medication_outlined,
-                          'Traitement',
-                          _profileData!['treatment'],
-                          const Color(0xFFFF6B6B),
-                        ),
-                      if ((_profileData?['allergies'] ?? '').toString().isNotEmpty)
-                        _buildInfoRow(
-                          Icons.warning_amber_outlined,
-                          'Allergies',
-                          _profileData!['allergies'],
-                          const Color(0xFFFF9800),
-                        ),
-                    ],
-                  ),
-
-                  // Section autres conditions (affiche seulement si au moins 1 champ rempli)
-                  if ((_profileData?['diabetes'] ?? '').toString().isNotEmpty ||
-                      (_profileData?['bloodPressure'] ?? '').toString().isNotEmpty ||
-                      (_profileData?['otherConditions'] ?? '').toString().isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _buildSectionCard(
-                      'Autres conditions',
-                      Icons.health_and_safety_outlined,
-                      [
-                        if ((_profileData?['diabetes'] ?? '').toString().isNotEmpty)
-                          _buildInfoRow(
-                            Icons.bloodtype_outlined,
-                            'Diabete',
-                            _profileData!['diabetes'],
-                            const Color(0xFF9C27B0),
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _loadProfile,
+                color: const Color(0xFF4A90E2),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
                           ),
-                        if ((_profileData?['bloodPressure'] ?? '').toString().isNotEmpty)
-                          _buildInfoRow(
-                            Icons.favorite_outline,
-                            'Tension arterielle',
-                            _profileData!['bloodPressure'],
-                            const Color(0xFFE91E63),
-                          ),
-                        if ((_profileData?['otherConditions'] ?? '').toString().isNotEmpty)
-                          _buildInfoRow(
-                            Icons.health_and_safety_outlined,
-                            'Autres',
-                            _profileData!['otherConditions'],
-                            const Color(0xFF4A90E2),
-                          ),
-                      ],
-                    ),
-                  ],
-
-                  const SizedBox(height: 30),
-
-                  // Message info
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF4A90E2).withValues(alpha: 0.15),
-                          const Color(0xFF6EC6FF).withValues(alpha: 0.15),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF4A90E2),
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          color: Color(0xFF4A90E2),
-                          size: 28,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            "Votre proche peut modifier ces informations",
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey[800],
-                              height: 1.4,
-                              fontWeight: FontWeight.w500,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4A90E2).withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Section Sécurité
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SecuritySettingsScreen(),
+                        child: const Icon(
+                          Icons.person,
+                          size: 50,
+                          color: Colors.white,
                         ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        _profileData?['name'] ?? "Mon nom",
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E5AAC),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 30),
+                      _buildSectionCard(
+                        'Informations generales',
+                        Icons.person_outline,
+                        [
+                          if ((_profileData?['age'] ?? 0) > 0)
+                            _buildInfoRow(
+                              Icons.cake_outlined,
+                              'Age',
+                              '${_profileData!['age']} ans',
+                              const Color(0xFF66BB6A),
+                            ),
+                          if ((_profileData?['diseaseStage'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.medical_information_outlined,
+                              'Stade de la maladie',
+                              _profileData!['diseaseStage'],
+                              const Color(0xFF4A90E2),
+                            ),
+                          if ((_profileData?['homeAddress'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.home_outlined,
+                              'Domicile',
+                              _profileData!['homeAddress'],
+                              const Color(0xFFFFB74D),
+                            ),
+                          if ((_profileData?['caregiverPhone'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.phone_outlined,
+                              'Telephone proche',
+                              _profileData!['caregiverPhone'],
+                              const Color(0xFF66BB6A),
+                            ),
                         ],
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
+                      const SizedBox(height: 16),
+                      _buildSectionCard(
+                        'Informations medicales',
+                        Icons.medical_services_outlined,
+                        [
+                          if ((_profileData?['doctor'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.medical_services_outlined,
+                              'Medecin referent',
+                              _profileData!['doctor'],
+                              const Color(0xFF4A90E2),
+                            ),
+                          if ((_profileData?['treatment'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.medication_outlined,
+                              'Traitement',
+                              _profileData!['treatment'],
+                              const Color(0xFFFF6B6B),
+                            ),
+                          if ((_profileData?['allergies'] ?? '').toString().isNotEmpty)
+                            _buildInfoRow(
+                              Icons.warning_amber_outlined,
+                              'Allergies',
+                              _profileData!['allergies'],
+                              const Color(0xFFFF9800),
+                            ),
+                        ],
+                      ),
+                      if ((_profileData?['diabetes'] ?? '').toString().isNotEmpty ||
+                          (_profileData?['bloodPressure'] ?? '').toString().isNotEmpty ||
+                          (_profileData?['otherConditions'] ?? '').toString().isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildSectionCard(
+                          'Autres conditions',
+                          Icons.health_and_safety_outlined,
+                          [
+                            if ((_profileData?['diabetes'] ?? '').toString().isNotEmpty)
+                              _buildInfoRow(
+                                Icons.bloodtype_outlined,
+                                'Diabete',
+                                _profileData!['diabetes'],
+                                const Color(0xFF9C27B0),
                               ),
-                              borderRadius: BorderRadius.circular(12),
+                            if ((_profileData?['bloodPressure'] ?? '').toString().isNotEmpty)
+                              _buildInfoRow(
+                                Icons.favorite_outline,
+                                'Tension arterielle',
+                                _profileData!['bloodPressure'],
+                                const Color(0xFFE91E63),
+                              ),
+                            if ((_profileData?['otherConditions'] ?? '').toString().isNotEmpty)
+                              _buildInfoRow(
+                                Icons.health_and_safety_outlined,
+                                'Autres',
+                                _profileData!['otherConditions'],
+                                const Color(0xFF4A90E2),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 30),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF4A90E2).withValues(alpha: 0.15),
+                              const Color(0xFF6EC6FF).withValues(alpha: 0.15),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF4A90E2),
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              color: Color(0xFF4A90E2),
+                              size: 28,
                             ),
-                            child: const Icon(Icons.security, color: Colors.white),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Sécurité',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                "Votre proche peut modifier ces informations",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.grey[800],
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'PIN, biométrie, session',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Color(0xFF4A90E2),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 20),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SecuritySettingsScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.security, color: Colors.white),
+                              ),
+                              const SizedBox(width: 14),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Sécurité',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF2E5AAC),
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Biométrie',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: Color(0xFF4A90E2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                    ],
                   ),
-
-                  const SizedBox(height: 30),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
-    // Ne pas afficher la section si aucun enfant
     if (children.isEmpty) return const SizedBox.shrink();
 
     return Container(

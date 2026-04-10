@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -208,19 +209,24 @@ class _QuizGameScreenState extends State<QuizGameScreen> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: !_gameStarted
+                ? _buildStartScreen()
+                : _currentQuestionIndex >= _totalQuestions
+                    ? _buildEndScreen()
+                    : _buildQuestionScreen(),
           ),
-        ),
-        child: !_gameStarted
-            ? _buildStartScreen()
-            : _currentQuestionIndex >= _totalQuestions
-                ? _buildEndScreen()
-                : _buildQuestionScreen(),
+        ],
       ),
     );
   }

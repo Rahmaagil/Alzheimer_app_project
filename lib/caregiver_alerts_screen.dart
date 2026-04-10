@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
+import 'theme.dart';
 
 class CaregiverAlertsTab extends StatefulWidget {
   final List<String>? patientUids;
@@ -350,36 +351,41 @@ class _CaregiverAlertsTabState extends State<CaregiverAlertsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: SafeArea(
-          child: _isLoadingPatients
-              ? const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
-            ),
-          )
-              : _linkedPatientIds.isEmpty
-              ? _buildNoPatientView()
-              : Column(
-            children: [
-              _buildHeader(),
-              _buildToggleButtons(),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _showStats ? _buildStatsView() : _buildAlertsView(),
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
               ),
-            ],
+            ),
+            child: SafeArea(
+              child: _isLoadingPatients
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
+                      ),
+                    )
+                  : _linkedPatientIds.isEmpty
+                      ? _buildNoPatientView()
+                      : Column(
+                          children: [
+                            _buildHeader(),
+                            _buildToggleButtons(),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: _showStats ? _buildStatsView() : _buildAlertsView(),
+                            ),
+                          ],
+                        ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

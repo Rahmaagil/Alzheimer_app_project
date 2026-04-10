@@ -1,6 +1,6 @@
 import 'package:alzhecare/face_recognition_service.dart';
 import 'package:alzhecare/fcm_service.dart';
-import 'package:alzhecare/sign_up_screen.dart';
+import 'package:alzhecare/sign_in_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +8,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'background_service.dart';
 import 'geofencing_service.dart';
 import 'fall_detection_background_service.dart';
+import 'app_security_service.dart';
 
 /// Clé globale du Navigator pour afficher des dialogs depuis n'importe quel contexte
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -23,6 +24,7 @@ void main() async {
   await GeofencingService.initialize();
   await FaceRecognitionService.initialize();
   await BackgroundService.initialize();
+  await AppSecurityService.initialize();
 
   // Injecter le navigatorKey dans le service de détection de chute
   FallDetectionBackgroundService.navigatorKey = navigatorKey;
@@ -44,7 +46,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const SignUpScreen(),
+      home: const SignInScreen(),
     );
   }
 }

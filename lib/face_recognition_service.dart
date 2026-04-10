@@ -94,8 +94,13 @@ class FaceRecognitionService {
   }) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final targetUid = patientUid ?? user?.uid;
-      if (targetUid == null) return false;
+      final targetUid = (patientUid != null && patientUid.isNotEmpty) ? patientUid : user?.uid;
+      if (targetUid == null) {
+        print("[FaceRecognition] Erreur: pas d'UID cible");
+        return false;
+      }
+
+      print("[FaceRecognition] Sauvegarde visage pour UID: $targetUid, nom: $name, relation: ${relation ?? ''}");
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -110,7 +115,7 @@ class FaceRecognitionService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      print("[FaceRecognition] Visage enregistre: $name");
+      print("[FaceRecognition] Visage enregistre: $name pour $targetUid");
       return true;
 
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'memory_game_screen.dart';
 import 'quiz_game_screen.dart';
+import 'theme.dart';
 
 class GameMenuScreen extends StatelessWidget {
   const GameMenuScreen({super.key});
@@ -26,98 +27,103 @@ class GameMenuScreen extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Entraînez votre cerveau',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF2E5AAC),
-                ),
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Des jeux simples pour améliorer la mémoire et la concentration',
-                style: TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              const SizedBox(height: 24),
-              _buildGameCard(
-                context,
-                title: 'Mémoire',
-                description: 'Retrouvez les paires identiques\npour améliorer votre mémoire',
-                icon: Icons.psychology,
-                gradient: const [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MemoryGameScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildGameCard(
-                context,
-                title: 'Quiz',
-                description: 'Répondez à des questions simples\npour stimuler votre mémoire',
-                icon: Icons.quiz,
-                gradient: const [Color(0xFFFFB74D), Color(0xFFFF9800)],
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const QuizGameScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.lightbulb, color: Color(0xFF4A90E2), size: 32),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Conseil',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5AAC),
-                              fontSize: 16,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Jouez quelques minutes chaque jour\npour maintenir vos capacités cognitives',
-                            style: TextStyle(fontSize: 13, color: Colors.black87),
-                          ),
-                        ],
-                      ),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Entraînez votre cerveau',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2E5AAC),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Des jeux simples pour améliorer la mémoire et la concentration',
+                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildGameCard(
+                    context,
+                    title: 'Mémoire',
+                    description: 'Retrievez les paires identiques\npour améliorer votre mémoire',
+                    icon: Icons.psychology,
+                    gradient: const [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MemoryGameScreen()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildGameCard(
+                    context,
+                    title: 'Quiz',
+                    description: 'Répondez à des questions simples\npour stimuler votre mémoire',
+                    icon: Icons.quiz,
+                    gradient: const [Color(0xFFFFB74D), Color(0xFFFF9800)],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const QuizGameScreen()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF4A90E2), width: 2),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.lightbulb, color: Color(0xFF4A90E2), size: 32),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Conseil',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2E5AAC),
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Jouez quelques minutes chaque jour\npour maintenir vos capacités cognitives',
+                                style: TextStyle(fontSize: 13, color: Colors.black87),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'firebase_ai_chat_service.dart';
+import 'theme.dart';
 
 class CaregiverChatbotScreen extends StatefulWidget {
   const CaregiverChatbotScreen({super.key});
@@ -141,57 +142,62 @@ class _CaregiverChatbotScreenState extends State<CaregiverChatbotScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Liste des messages
-          Expanded(
-            child: _messages.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return _buildMessageBubble(_messages[index]);
-              },
-            ),
-          ),
-
-          // Indicateur de chargement
-          if (_isLoading)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 8),
-                        Text("En train d'écrire..."),
-                      ],
-                    ),
-                  ),
-                ],
+          AppDecorationWidgets.buildDecoCircles(),
+          Column(
+            children: [
+              // Liste des messages
+              Expanded(
+                child: _messages.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    return _buildMessageBubble(_messages[index]);
+                  },
+                ),
               ),
-            ),
 
-          // Suggestions (seulement si peu de messages)
-          if (_messages.length <= 2) _buildSuggestions(),
+              // Indicateur de chargement
+              if (_isLoading)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text("En train d'écrire..."),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-          // Zone de saisie
-          _buildInputArea(),
+              // Suggestions
+              if (_messages.length <= 2) _buildSuggestions(),
+
+              // Zone de saisie
+              _buildInputArea(),
+            ],
+          ),
         ],
       ),
     );
@@ -207,7 +213,7 @@ class _CaregiverChatbotScreenState extends State<CaregiverChatbotScreen> {
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF4A90E2).withOpacity(0.1),
+              color: const Color(0xFF4A90E2).withValues(alpha: 0.1),
             ),
             child: const Icon(
               Icons.psychology,
@@ -245,8 +251,7 @@ class _CaregiverChatbotScreenState extends State<CaregiverChatbotScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment:
-        message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!message.isUser) ...[
@@ -287,9 +292,7 @@ class _CaregiverChatbotScreenState extends State<CaregiverChatbotScreen> {
                   Text(
                     _formatTime(message.timestamp),
                     style: TextStyle(
-                      color: message.isUser
-                          ? Colors.white70
-                          : Colors.black45,
+                      color: message.isUser ? Colors.white70 : Colors.black45,
                       fontSize: 11,
                     ),
                   ),
@@ -358,7 +361,7 @@ class _CaregiverChatbotScreenState extends State<CaregiverChatbotScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -3),
           ),

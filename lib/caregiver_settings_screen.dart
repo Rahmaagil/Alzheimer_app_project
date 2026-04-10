@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geocoding/geocoding.dart';
+import 'theme.dart';
 
 class CaregiverSettingsScreen extends StatefulWidget {
   final String? patientUid;
@@ -77,7 +78,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
             .collection('users')
             .doc(patientId)
             .get();
-        
+
         if (patientDoc.exists) {
           patientsData.add({
             'id': patientId,
@@ -92,13 +93,12 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
         _patientsList = patientsData;
         _selectedPatientUid = targetPatientUid;
         _patientName = patientsData.firstWhere(
-          (p) => p['id'] == targetPatientUid,
+              (p) => p['id'] == targetPatientUid,
           orElse: () => {'name': 'Patient'},
         )['name'];
       });
 
       await _loadPatientSettings(targetPatientUid);
-
     } catch (e) {
       debugPrint('[Settings] Erreur: $e');
     } finally {
@@ -134,7 +134,7 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
     setState(() {
       _selectedPatientUid = patientUid;
       _patientName = _patientsList.firstWhere(
-        (p) => p['id'] == patientUid,
+            (p) => p['id'] == patientUid,
         orElse: () => {'name': 'Patient'},
       )['name'];
     });
@@ -259,254 +259,271 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
         ),
         title: _patientsList.length > 1
             ? DropdownButton<String>(
-                value: _selectedPatientUid,
-                dropdownColor: const Color(0xFF2E5AAC),
-                underline: const SizedBox(),
-                style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold),
-                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF2E5AAC)),
-                items: _patientsList.map((patient) {
-                  return DropdownMenuItem(
-                    value: patient['id'] as String,
-                    child: Text(
-                      patient['name'] as String,
-                      style: const TextStyle(color: Color(0xFF2E5AAC)),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    _onPatientChanged(value);
-                  }
-                },
-              )
-            : Text(
-                _patientName ?? 'Paramètres du patient',
-                style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 22),
+          value: _selectedPatientUid,
+          dropdownColor: const Color(0xFF2E5AAC),
+          underline: const SizedBox(),
+          style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold),
+          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF2E5AAC)),
+          items: _patientsList.map((patient) {
+            return DropdownMenuItem(
+              value: patient['id'] as String,
+              child: Text(
+                patient['name'] as String,
+                style: const TextStyle(color: Color(0xFF2E5AAC)),
               ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) _onPatientChanged(value);
+          },
+        )
+            : Text(
+          _patientName ?? 'Paramètres du patient',
+          style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 22),
+        ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
-            : SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
-                        boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 20)],
-                      ),
-                      child: const Icon(Icons.settings, color: Colors.white, size: 45),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  _buildCardSection(
-                    title: 'Domicile du patient',
-                    icon: Icons.home,
-                    iconGradient: const LinearGradient(colors: [Color(0xFF7FB3FF), Color(0xFF2EC7F0)]),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_homeAddress != null && _homeLat != null && _homeLng != null)
-                          ...[
-                            const Text('Adresse enregistrée:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87)),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)]),
-                                borderRadius: BorderRadius.circular(14),
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
+                : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF4A90E2).withValues(alpha: 0.3),
+                                blurRadius: 20,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.location_on, color: Color(0xFF2EC7F0), size: 24),
-                                      const SizedBox(width: 12),
-                                      Expanded(child: Text(_homeAddress!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF2E5AAC)))),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'GPS: ${_homeLat!.toStringAsFixed(6)}, ${_homeLng!.toStringAsFixed(6)}',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-
-                        TextField(
-                          controller: _addressController,
-                          decoration: InputDecoration(
-                            labelText: 'Entrer l\'adresse complète',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            filled: true,
-                            fillColor: Colors.white,
-                            prefixIcon: const Icon(Icons.edit_location, color: Color(0xFF4A90E2)),
+                            ],
                           ),
-                          maxLines: 2,
+                          child: const Icon(Icons.settings, color: Colors.white, size: 45),
                         ),
-                        const SizedBox(height: 16),
+                      ),
+                      const SizedBox(height: 28),
 
-                        // Bouton "Trouver les coordonnées GPS" - Même style que "Enregistrer"
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _isGeocoding ? null : _geocodeAddress,
-                            style: ElevatedButton.styleFrom(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                              padding: EdgeInsets.zero,
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                            ),
-                            child: Ink(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
-                                borderRadius: BorderRadius.all(Radius.circular(30)),
+                      _buildCardSection(
+                        title: 'Domicile du patient',
+                        icon: Icons.home,
+                        iconGradient: const LinearGradient(colors: [Color(0xFF7FB3FF), Color(0xFF2EC7F0)]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_homeAddress != null && _homeLat != null && _homeLng != null) ...[
+                              const Text(
+                                'Adresse enregistrée :',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
                               ),
-                              child: Center(
-                                child: _isGeocoding
-                                    ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                                    : const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)]),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.my_location, color: Colors.white),
-                                    SizedBox(width: 10),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.location_on, color: Color(0xFF2EC7F0), size: 24),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _homeAddress!,
+                                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF2E5AAC)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
                                     Text(
-                                      'Trouver les coordonnées GPS',
-                                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                                      'GPS: ${_homeLat!.toStringAsFixed(6)}, ${_homeLng!.toStringAsFixed(6)}',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                                     ),
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 20),
+                            ],
+
+                            TextField(
+                              controller: _addressController,
+                              decoration: InputDecoration(
+                                labelText: 'Entrer l\'adresse complète',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                                filled: true,
+                                fillColor: Colors.white,
+                                prefixIcon: const Icon(Icons.edit_location, color: Color(0xFF4A90E2)),
+                              ),
+                              maxLines: 2,
                             ),
-                          ),
-                        ),
+                            const SizedBox(height: 16),
 
-                        const SizedBox(height: 14),
-
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF8E1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.info_outline, color: Color(0xFFFFB74D), size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Cliquez sur "Trouver les coordonnées GPS" avant de sauvegarder.',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+                            // Bouton Trouver coordonnées
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: _isGeocoding ? null : _geocodeAddress,
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                                  backgroundColor: Colors.transparent,
+                                  elevation: 0,
+                                ),
+                                child: Ink(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                                  ),
+                                  child: Center(
+                                    child: _isGeocoding
+                                        ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                                        : const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.my_location, color: Colors.white),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Trouver les coordonnées GPS',
+                                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                            ),
 
-                  const SizedBox(height: 24),
+                            const SizedBox(height: 14),
 
-                  _buildCardSection(
-                    title: 'Zone de sécurité',
-                    icon: Icons.radio_button_unchecked,
-                    iconGradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Rayon actuel', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
-                                borderRadius: BorderRadius.circular(20),
+                                color: const Color(0xFFFFF8E1),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text('$_safeZoneRadius m', style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.info_outline, color: Color(0xFFFFB74D), size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Cliquez sur "Trouver les coordonnées GPS" avant de sauvegarder.',
+                                      style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 20),
-                        Slider(
-                          value: _safeZoneRadius.toDouble(),
-                          min: 50,
-                          max: 1000,
-                          divisions: 19,
-                          label: '$_safeZoneRadius m',
-                          onChanged: (val) => setState(() => _safeZoneRadius = val.round()),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Bouton Enregistrer les modifications (inchangé)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveSettings,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
                       ),
-                      child: Ink(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
-                          borderRadius: BorderRadius.all(Radius.circular(30)),
+
+                      const SizedBox(height: 24),
+
+                      _buildCardSection(
+                        title: 'Zone de sécurité',
+                        icon: Icons.radio_button_unchecked,
+                        iconGradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Rayon actuel', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '$_safeZoneRadius m',
+                                    style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            Slider(
+                              value: _safeZoneRadius.toDouble(),
+                              min: 50,
+                              max: 1000,
+                              divisions: 19,
+                              label: '$_safeZoneRadius m',
+                              onChanged: (val) => setState(() => _safeZoneRadius = val.round()),
+                            ),
+                          ],
                         ),
-                        child: Center(
-                          child: _isSaving
-                              ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                              : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.save, color: Colors.white),
-                              SizedBox(width: 10),
-                              Text(
-                                'Enregistrer les modifications',
-                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // Bouton Enregistrer
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveSettings,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            backgroundColor: Colors.transparent,
+                            elevation: 0,
+                          ),
+                          child: Ink(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                              borderRadius: BorderRadius.all(Radius.circular(30)),
+                            ),
+                            child: Center(
+                              child: _isSaving
+                                  ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                                  : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.save, color: Colors.white),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Enregistrer les modifications',
+                                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -523,7 +540,12 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15)],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 15,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,7 +558,10 @@ class _CaregiverSettingsScreenState extends State<CaregiverSettingsScreen> {
                 child: Icon(icon, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 14),
-              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC))),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
+              ),
             ],
           ),
           const SizedBox(height: 20),

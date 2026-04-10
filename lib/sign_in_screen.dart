@@ -1,10 +1,12 @@
 import 'package:alzhecare/caregiver_home_screen.dart';
+import 'package:alzhecare/patient_onboarding_screen.dart';
 import 'package:alzhecare/patient_home_screen.dart';
 import 'package:alzhecare/reset_password_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:alzhecare/sign_up_screen.dart';
+import 'package:alzhecare/face_login_screen.dart';
 import 'geofencing_service.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -34,20 +36,6 @@ class _SignInScreenState extends State<SignInScreen> {
         password: _passwordController.text.trim(),
       );
 
-      if (!userCredential.user!.emailVerified) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Veuillez vérifier votre email avant de vous connecter."),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        await FirebaseAuth.instance.signOut();
-        setState(() => _isLoading = false);
-        return;
-      }
-
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -57,12 +45,19 @@ class _SignInScreenState extends State<SignInScreen> {
         String role = userDoc['role'] as String? ?? 'patient';
 
         if (role == 'patient') {
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          final onboardingComplete = userData?['onboardingComplete'] ?? false;
+          if (!onboardingComplete) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const PatientOnboardingScreen()),
+            );
+            return;
+          }
           await GeofencingService.startTracking(intervalMinutes: 15);
-          print("[SignIn] Geofencing démarré pour le patient");
         }
 
         if (mounted) {
-
           if (role == 'patient') {
             Navigator.pushReplacement(
               context,
@@ -114,11 +109,19 @@ class _SignInScreenState extends State<SignInScreen> {
           message = e.message ?? "Erreur inconnue";
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -134,7 +137,7 @@ class _SignInScreenState extends State<SignInScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+            colors: [Color(0xFFE3F2FD), Color(0xFFF5FAFF)],
           ),
         ),
         child: SingleChildScrollView(
@@ -150,7 +153,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                      gradient: const LinearGradient(colors: [Color(0xFF90CAF9), Color(0xFF64B5F6)]),
                       boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 20)],
                     ),
                     child: const Icon(Icons.psychology, color: Colors.white, size: 42),
@@ -158,7 +161,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   const SizedBox(height: 16),
                   const Text(
                     "AlzheCare",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF64B5F6)),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -247,7 +250,7 @@ class _SignInScreenState extends State<SignInScreen> {
                             },
                             child: const Text(
                               "Mot de passe oublié ?",
-                              style: TextStyle(color: Color(0xFF2E5AAC)),
+                              style: TextStyle(color: Color(0xFF64B5F6)),
                             ),
                           ),
                         ),
@@ -294,6 +297,33 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Face/Fingerprint login button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const FaceLoginScreen()),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF64B5F6), width: 2),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            icon: const Icon(Icons.fingerprint, color: Color(0xFF64B5F6)),
+                            label: const Text(
+                              "Connexion biométrique",
+                              style: TextStyle(
+                                color: Color(0xFF64B5F6),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         Center(
                           child: TextButton(
@@ -305,7 +335,7 @@ class _SignInScreenState extends State<SignInScreen> {
                             },
                             child: const Text(
                               "Pas de compte ? Créer un compte",
-                              style: TextStyle(color: Color(0xFF2E5AAC)),
+                              style: TextStyle(color: Color(0xFF64B5F6)),
                             ),
                           ),
                         ),

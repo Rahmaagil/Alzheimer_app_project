@@ -10,10 +10,12 @@ import 'face_image_service.dart';
 
 class FaceCameraScreen extends StatefulWidget {
   final bool isRegistrationMode;
+  final bool isSelfRegistration;
 
   const FaceCameraScreen({
     super.key,
     this.isRegistrationMode = false,
+    this.isSelfRegistration = false,
   });
 
   @override
@@ -269,44 +271,51 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     final relationController = TextEditingController();
     final phoneController = TextEditingController();
 
+    if (widget.isSelfRegistration) {
+      nameController.text = "Moi";
+    }
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Enregistrer ce visage"),
+        title: Text(widget.isSelfRegistration ? "Enregistrer votre visage" : "Enregistrer ce visage"),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: "Nom du proche",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                decoration: InputDecoration(
+                  labelText: widget.isSelfRegistration ? "Votre nom" : "Nom du proche",
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.person),
                 ),
                 autofocus: true,
+                enabled: !widget.isSelfRegistration,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: relationController,
-                decoration: const InputDecoration(
-                  labelText: "Relation",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.family_restroom),
+              if (!widget.isSelfRegistration) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: relationController,
+                  decoration: const InputDecoration(
+                    labelText: "Relation",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.family_restroom),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: "Telephone",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: "Telephone",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                  keyboardType: TextInputType.phone,
                 ),
-                keyboardType: TextInputType.phone,
-              ),
+              ],
             ],
           ),
         ),
@@ -331,8 +340,8 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
               final success = await FaceRecognitionService.saveFace(
                 name: nameController.text.trim(),
                 embedding: embedding,
-                relation: relationController.text.trim(),
-                phoneNumber: phoneController.text.trim(),
+                relation: widget.isSelfRegistration ? 'self' : relationController.text.trim(),
+                phoneNumber: widget.isSelfRegistration ? '' : phoneController.text.trim(),
                 imageUrl: imageUrl,
               );
 
@@ -341,8 +350,8 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4A90E2),
             ),
-            child: const Text("Enregistrer",
-                style: TextStyle(color: Colors.white)),
+            child: Text(widget.isSelfRegistration ? "Confirmer" : "Enregistrer",
+                style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -350,12 +359,12 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
 
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Visage enregistre"),
+        SnackBar(
+          content: Text(widget.isSelfRegistration ? "Votre visage a été enregistré" : "Visage enregistré"),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     }
   }
 
@@ -388,7 +397,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.pop(context);
+              Navigator.pop(context, {'recognized': true, 'name': result['name']});
             },
             child: const Text("OK"),
           ),
@@ -402,6 +411,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
+    Navigator.pop(context, {'recognized': false});
   }
 
   @override

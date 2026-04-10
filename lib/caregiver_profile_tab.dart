@@ -515,7 +515,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E5AAC),
+              backgroundColor: const Color(0xFF64B5F6),
             ),
             child: const Text("Déconnexion", style: TextStyle(color: Colors.white)),
           ),
@@ -866,7 +866,7 @@ class _CaregiverProfileTabState extends State<CaregiverProfileTab> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    'PIN, biométrie, session',
+                                    'Biométrie',
                                     style: TextStyle(fontSize: 14, color: Colors.black54),
                                   ),
                                 ],

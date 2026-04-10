@@ -131,7 +131,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
+                      gradient: const LinearGradient(colors: [Color(0xFF90CAF9), Color(0xFF64B5F6)]),
                       boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 20)],
                     ),
                     child: const Icon(Icons.psychology, color: Colors.white, size: 42),
@@ -139,7 +139,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const SizedBox(height: 16),
                   const Text(
                     "AlzheCare",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF64B5F6)),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -340,12 +340,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             padding: EdgeInsets.only(left: 12),
                             child: Row(
                               children: [
-                                Icon(Icons.info_outline, size: 16, color: Color(0xFF4A90E2)),
+                                Icon(Icons.info_outline, size: 16, color: Color(0xFF64B5F6)),
                                 SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     "Votre numéro pour vous contacter",
-                                    style: TextStyle(fontSize: 12, color: Color(0xFF4A90E2)),
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF64B5F6)),
                                   ),
                                 ),
                               ],

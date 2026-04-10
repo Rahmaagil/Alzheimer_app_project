@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import 'theme.dart';
 
 class LostPatientScreen extends StatefulWidget {
   const LostPatientScreen({super.key});
 
   @override
-  State<LostPatientScreen> createState() => _LostPatientScreen();
+  State<LostPatientScreen> createState() => _LostPatientScreenState();
 }
 
-class _LostPatientScreen extends State<LostPatientScreen> {
+class _LostPatientScreenState extends State<LostPatientScreen> {
   bool _isSending = false;
   bool _sent = false;
   String? _errorMessage;
@@ -47,7 +48,10 @@ class _LostPatientScreen extends State<LostPatientScreen> {
       );
 
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        setState(() => _isSending = false);
+        return;
+      }
 
       // Sauvegarder alerte locale
       await FirebaseFirestore.instance
@@ -62,7 +66,7 @@ class _LostPatientScreen extends State<LostPatientScreen> {
         'status': 'en attente',
       });
 
-      // Mettre à jour position
+      // Mettre à jour dernière position
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -74,17 +78,16 @@ class _LostPatientScreen extends State<LostPatientScreen> {
         },
       });
 
-      //  Récupérer liste suiveurs et envoyer notification
+      // Récupérer les aidants et envoyer notifications
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
       final linkedCaregivers = List<String>.from(
-          userDoc.data()?['linkedCaregivers'] ?? []
+        userDoc.data()?['linkedCaregivers'] ?? [],
       );
 
-      // ENVOYER NOTIFICATION A TOUS LES SUIVEURS
       final patientName = userDoc.data()?['name'] ?? 'Patient';
 
       for (final caregiverId in linkedCaregivers) {
@@ -137,197 +140,171 @@ class _LostPatientScreen extends State<LostPatientScreen> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFEAF2FF),
-              Color(0xFFF6FBFF),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-              child: Column(
-                children: [
-                  // ICONE
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFFFFB74D),
-                          Color(0xFFFF7043),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF7043).withOpacity(0.3),
-                          blurRadius: 20,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 50,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  const Text(
-                    "Pas de panique !",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2E5AAC),
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  const Text(
-                    "Vos proches recevront votre position.",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.black54,
-                    ),
-                  ),
-
-                  const SizedBox(height: 35),
-
-                  // CARTE STATUT
-                  if (_sent)
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+                child: Column(
+                  children: [
+                    // Icône
                     Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF7FB3FF), Color(0xFF2EC7F0)],
+                          colors: [Color(0xFFFFB74D), Color(0xFFFF7043)],
                         ),
-                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF2EC7F0).withOpacity(0.3),
-                            blurRadius: 15,
+                            color: const Color(0xFFFF7043).withValues(alpha: 0.3),
+                            blurRadius: 20,
                           ),
                         ],
                       ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white, size: 28),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              "Position envoyée !\nVos proches ont été alertés.",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.white,
+                        size: 50,
                       ),
                     ),
 
-                  if (_errorMessage != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF5F6D), Color(0xFFFF2E63)],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFF2E63).withOpacity(0.3),
-                            blurRadius: 15,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.white, size: 28),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      "Pas de panique !",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2E5AAC),
                       ),
                     ),
 
-                  const SizedBox(height: 30),
+                    const SizedBox(height: 4),
 
-                  // BOUTON ENVOYER
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: _isSending ? null : _sendLocation,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: EdgeInsets.zero,
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                      ),
-                      child: Ink(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFFFFB74D), Color(0xFFFF7043)],
+                    const Text(
+                      "Vos proches recevront votre position.",
+                      style: TextStyle(fontSize: 16, color: Colors.black54),
+                    ),
+
+                    const SizedBox(height: 35),
+
+                    // Statut succès
+                    if (_sent)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF7FB3FF), Color(0xFF2EC7F0)],
                           ),
-                          borderRadius: BorderRadius.all(Radius.circular(30)),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Center(
-                          child: _isSending
-                              ? const CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2)
-                              : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.location_on,
-                                  color: Colors.white, size: 24),
-                              const SizedBox(width: 10),
-                              Text(
-                                _sent
-                                    ? "Envoyer à nouveau"
-                                    : "Envoyer ma position",
-                                style: const TextStyle(
-                                  fontSize: 18,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white, size: 28),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Position envoyée !\nVos proches ont été alertés.",
+                                style: TextStyle(
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Message d'erreur
+                    if (_errorMessage != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF5F6D), Color(0xFFFF2E63)],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.white, size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const SizedBox(height: 30),
+
+                    // Bouton principal
+                    SizedBox(
+                      width: double.infinity,
+                      height: 60,
+                      child: ElevatedButton(
+                        onPressed: _isSending ? null : _sendLocation,
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          backgroundColor: Colors.transparent,
+                          elevation: 0,
+                        ),
+                        child: Ink(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(colors: [Color(0xFFFFB74D), Color(0xFFFF7043)]),
+                            borderRadius: BorderRadius.all(Radius.circular(30)),
+                          ),
+                          child: Center(
+                            child: _isSending
+                                ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                                : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.location_on, color: Colors.white, size: 24),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _sent ? "Envoyer à nouveau" : "Envoyer ma position",
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

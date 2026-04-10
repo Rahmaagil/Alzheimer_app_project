@@ -127,6 +127,8 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     if (index == 2 && _pendingAlerts > 0) {
       _markAlertsAsSeen();
     }
+    // Recharger la liste des patients quand on change d'onglet
+    _loadPatients();
     setState(() => _currentIndex = index);
   }
 
@@ -170,11 +172,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         .doc(user.uid)
         .get();
 
-    final linkedPatients = List<String>.from(
-        userDoc.data()?['linkedPatients'] ?? []
-    );
+      final linkedPatients = List<String>.from(
+          userDoc.data()?['linkedPatients'] ?? []
+      );
 
-    if (linkedPatients.isEmpty) {
+      debugPrint("[HomeScreen] linkedPatients from Firestore: $linkedPatients");
+
+      if (linkedPatients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Aucun patient lié'),
@@ -392,13 +396,6 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         backgroundColor: const Color(0xFFEAF2FF),
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: const Text(
-          'AlzheCare',
-          style: TextStyle(
-            color: Color(0xFF2E5AAC),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
         centerTitle: true,
         actions: [
           _buildPatientDropdown(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'reminder_notification_service.dart';
@@ -54,19 +55,23 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
         };
       }).toList();
 
-      setState(() {
-        _allReminders = list;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _allReminders = list;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint("Erreur: $e");
-      setState(() => _isLoading = false);
+      debugPrint("Erreur chargement rappels: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   List<Map<String, dynamic>> _getRemindersForDay(DateTime day) {
     return _allReminders.where((reminder) {
-      final date = reminder['date'];
+      final date = reminder['date'] as Timestamp?;
       if (date == null) return false;
       final reminderDate = date.toDate();
       return reminderDate.year == day.year &&
@@ -80,6 +85,8 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
     TimeOfDay selectedTime = TimeOfDay.now();
     DateTime selectedDate = _selectedDay ?? DateTime.now();
 
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -87,8 +94,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: const Color(0xFFF0F7FF),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               title: Text(
                 'Nouveau rappel pour $_patientName',
                 style: const TextStyle(
@@ -106,10 +112,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                     style: const TextStyle(fontSize: 18),
                     decoration: InputDecoration(
                       labelText: 'Quoi ? (médicament, rendez-vous...)',
-                      labelStyle: const TextStyle(fontSize: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       filled: true,
                       fillColor: Colors.white,
                     ),
@@ -142,12 +145,8 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                                 const Icon(Icons.calendar_today, color: Color(0xFF4A90E2), size: 28),
                                 const SizedBox(height: 8),
                                 Text(
-                                  "${selectedDate.day}/${selectedDate.month}",
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
+                                  "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
                                 ),
                               ],
                             ),
@@ -179,11 +178,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                                 const SizedBox(height: 8),
                                 Text(
                                   selectedTime.format(context),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2E5AAC)),
                                 ),
                               ],
                             ),
@@ -197,13 +192,11 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text("Annuler", style: TextStyle(fontSize: 16)),
+                  child: const Text("Annuler"),
                 ),
                 Container(
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                    ),
+                    gradient: const LinearGradient(colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)]),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: TextButton(
@@ -211,7 +204,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                       final title = titleController.text.trim();
                       if (title.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Entrez un titre")),
+                          const SnackBar(content: Text("Veuillez entrer un titre")),
                         );
                         return;
                       }
@@ -243,9 +236,10 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                           scheduledTime: reminderDateTime,
                         );
 
-                        Navigator.pop(dialogContext);
+                        if (mounted) Navigator.pop(dialogContext);
+
                         await Future.delayed(const Duration(milliseconds: 300));
-                        _loadData();
+                        await _loadData();
 
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -266,17 +260,14 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text("Erreur: $e"),
+                              content: Text("Erreur : $e"),
                               backgroundColor: const Color(0xFFFF5F6D),
                             ),
                           );
                         }
                       }
                     },
-                    child: const Text(
-                      "Ajouter",
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+                    child: const Text("Ajouter", style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -295,15 +286,10 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
         title: const Text("Supprimer ce rappel ?"),
         content: const Text("Cette action est irréversible."),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Annuler"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Annuler")),
           Container(
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF5F6D), Color(0xFFFFC371)],
-              ),
+              gradient: const LinearGradient(colors: [Color(0xFFFF5F6D), Color(0xFFFFC371)]),
               borderRadius: BorderRadius.circular(8),
             ),
             child: TextButton(
@@ -326,18 +312,15 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
           .delete();
 
       await ReminderNotificationService.cancelReminder(docId);
-      _loadData();
+      await _loadData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Rappel supprimé"),
-            backgroundColor: Color(0xFF66BB6A),
-          ),
+          const SnackBar(content: Text("Rappel supprimé"), backgroundColor: Color(0xFF66BB6A)),
         );
       }
     } catch (e) {
-      debugPrint("Erreur: $e");
+      debugPrint("Erreur suppression: $e");
     }
   }
 
@@ -350,7 +333,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
           .doc(docId)
           .update({'done': !currentDone});
 
-      _loadData();
+      await _loadData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -361,7 +344,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
         );
       }
     } catch (e) {
-      debugPrint("Erreur: $e");
+      debugPrint("Erreur toggle: $e");
     }
   }
 
@@ -386,11 +369,7 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
         ),
         title: Text(
           "Rappels de $_patientName",
-          style: const TextStyle(
-            color: Color(0xFF2E5AAC),
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: const TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold, fontSize: 20),
         ),
         centerTitle: true,
         actions: [
@@ -400,170 +379,102 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
-          ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
-            : Column(
-                children: [
-                  TableCalendar(
-                    firstDay: DateTime.now().subtract(const Duration(days: 365)),
-                    lastDay: DateTime.now().add(const Duration(days: 365)),
-                    focusedDay: _focusedDay,
-                    calendarFormat: _calendarFormat,
-                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                    },
-                    onFormatChanged: (format) {
-                      setState(() => _calendarFormat = format);
-                    },
-                    onPageChanged: (focusedDay) {
-                      _focusedDay = focusedDay;
-                    },
-                    eventLoader: _getRemindersForDay,
-                    calendarStyle: CalendarStyle(
-                      outsideDaysVisible: false,
-                      weekendTextStyle: const TextStyle(color: Color(0xFF2E5AAC)),
-                      defaultTextStyle: const TextStyle(color: Color(0xFF2E5AAC)),
-                      selectedDecoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                      todayDecoration: BoxDecoration(
-                        color: const Color(0xFF6EC6FF).withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      markerDecoration: const BoxDecoration(
-                        color: Color(0xFFFF9800),
-                        shape: BoxShape.circle,
-                      ),
-                      markersMaxCount: 3,
-                      markerSize: 6,
-                      markerMargin: const EdgeInsets.symmetric(horizontal: 1),
-                    ),
-                    headerStyle: const HeaderStyle(
-                      formatButtonVisible: true,
-                      titleCentered: true,
-                      titleTextStyle: TextStyle(
-                        color: Color(0xFF2E5AAC),
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      leftChevronIcon: Icon(Icons.chevron_left, color: Color(0xFF2E5AAC)),
-                      rightChevronIcon: Icon(Icons.chevron_right, color: Color(0xFF2E5AAC)),
-                      formatButtonTextStyle: TextStyle(color: Color(0xFF4A90E2)),
-                      formatButtonDecoration: BoxDecoration(
-                        border: Border.fromBorderSide(BorderSide(color: Color(0xFF4A90E2))),
-                        borderRadius: BorderRadius.all(Radius.circular(8)),
-                      ),
-                    ),
-                    daysOfWeekStyle: const DaysOfWeekStyle(
-                      weekdayStyle: TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold),
-                      weekendStyle: TextStyle(color: Color(0xFF2E5AAC), fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.list_alt, color: Color(0xFF2E5AAC)),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Rappels du ${_selectedDay?.day ?? ''}/${_selectedDay?.month ?? ''}",
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2E5AAC),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: selectedReminders.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.event_available, size: 50, color: Colors.grey[400]),
-                                const SizedBox(height: 12),
-                                Text("Aucun rappel ce jour", style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: selectedReminders.length,
-                            itemBuilder: (context, index) {
-                              final reminder = selectedReminders[index];
-                              final title = reminder['title'] as String;
-                              final ts = reminder['date'] as Timestamp?;
-                              final docId = reminder['id'] as String;
-                              final isDone = reminder['done'] as bool;
-                              final timeText = _formatTime(ts);
-
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  color: isDone ? Colors.grey[100] : Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: isDone ? 0.04 : 0.08),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: ListTile(
-                                  onTap: () => _toggleDone(docId, isDone),
-                                  leading: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      gradient: isDone
-                                          ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!])
-                                          : const LinearGradient(
-                                              colors: [Color(0xFFFFB74D), Color(0xFFFF9800)],
-                                            ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(isDone ? Icons.check_circle : Icons.alarm, color: Colors.white),
-                                  ),
-                                  title: Text(
-                                    title,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: isDone ? Colors.grey[600] : const Color(0xFF2E5AAC),
-                                      decoration: isDone ? TextDecoration.lineThrough : null,
-                                    ),
-                                  ),
-                                  subtitle: Text(timeText, style: TextStyle(color: Colors.grey[600])),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Color(0xFFFF5F6D)),
-                                    onPressed: () => _deleteReminder(docId),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
               ),
+            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
+                : Column(
+              children: [
+                TableCalendar(
+                  firstDay: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDay: DateTime.now().add(const Duration(days: 365)),
+                  focusedDay: _focusedDay,
+                  calendarFormat: _calendarFormat,
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                  onDaySelected: (selectedDay, focusedDay) {
+                    setState(() {
+                      _selectedDay = selectedDay;
+                      _focusedDay = focusedDay;
+                    });
+                  },
+                  calendarStyle: CalendarStyle(
+                    selectedDecoration: const BoxDecoration(
+                      color: Color(0xFF4A90E2),
+                      shape: BoxShape.circle,
+                    ),
+                    todayDecoration: BoxDecoration(
+                      color: const Color(0xFF4A90E2).withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  headerStyle: const HeaderStyle(
+                    formatButtonVisible: true,
+                    titleCentered: true,
+                    formatButtonDecoration: BoxDecoration(
+                      color: Color(0xFF4A90E2),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: selectedReminders.isEmpty
+                      ? const Center(
+                    child: Text(
+                      'Aucun rappel pour cette journée',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  )
+                      : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: selectedReminders.length,
+                    itemBuilder: (context, index) {
+                      final reminder = selectedReminders[index];
+                      final docId = reminder['id'] as String;
+                      final title = reminder['title'] as String;
+                      final done = reminder['done'] as bool;
+                      final timeText = _formatTime(reminder['date'] as Timestamp?);
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          leading: Checkbox(
+                            value: done,
+                            onChanged: (_) => _toggleDone(docId, done),
+                            activeColor: const Color(0xFF66BB6A),
+                          ),
+                          title: Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: done ? Colors.grey : const Color(0xFF2E5AAC),
+                              decoration: done ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                          subtitle: Text(timeText, style: TextStyle(color: Colors.grey[600])),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Color(0xFFFF5F6D)),
+                            onPressed: () => _deleteReminder(docId),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -72,7 +72,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     gradient: const LinearGradient(
                       colors: [
                         Color(0xFF6EC6FF),
-                        Color(0xFF4A90E2)
+                        Color(0xFF64B5F6)
                       ],
                     ),
                     boxShadow: [
@@ -96,7 +96,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5AAC),
+                    color: Color(0xFF64B5F6),
                   ),
                 ),
 
@@ -217,7 +217,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           },
                           child: const Text(
                             "Retour à la connexion",
-                            style: TextStyle(color: Color(0xFF2E5AAC)),
+                            style: TextStyle(color: Color(0xFF64B5F6)),
                           ),
                         ),
                       ),

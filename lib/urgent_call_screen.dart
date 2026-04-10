@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -108,19 +109,24 @@ class _UrgentCallScreenState extends State<UrgentCallScreen> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+      body: Stack(
+        children: [
+          AppDecorationWidgets.buildDecoCircles(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEAF2FF), Color(0xFFF6FBFF)],
+              ),
+            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
+                : _caregivers.isEmpty
+                    ? _buildEmptyState()
+                    : _buildCaregiversList(),
           ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
-            : _caregivers.isEmpty
-                ? _buildEmptyState()
-                : _buildCaregiversList(),
+        ],
       ),
     );
   }

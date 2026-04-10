@@ -13,9 +13,13 @@ class FaceImageService {
   }) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
+      final targetUid = (patientUid != null && patientUid.isNotEmpty) ? patientUid : user?.uid;
+      if (targetUid == null) {
+        print("[FaceImage] Erreur: pas d'UID cible");
+        return null;
+      }
 
-      final ref = _storage.ref().child('faces').child(patientUid).child('$faceId.jpg');
+      final ref = _storage.ref().child('faces').child(targetUid).child('$faceId.jpg');
 
       final file = File(imagePath);
       if (!await file.exists()) {
