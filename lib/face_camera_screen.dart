@@ -1,21 +1,16 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
 import 'face_recognition_service.dart';
-import 'face_image_service.dart';
 
 class FaceCameraScreen extends StatefulWidget {
   final bool isRegistrationMode;
-  final bool isSelfRegistration;
 
   const FaceCameraScreen({
     super.key,
     this.isRegistrationMode = false,
-    this.isSelfRegistration = false,
   });
 
   @override
@@ -107,7 +102,6 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             }
           }
         } catch (e) {
-          // Erreur silencieuse
         } finally {
           _isDetecting = false;
         }
@@ -243,21 +237,15 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         return;
       }
 
-      final tempDir = await getTemporaryDirectory();
-      final imagePath = '${tempDir.path}/face_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final file = File(imagePath);
-      file.writeAsBytesSync(img.encodeJpg(faceImage, quality: 85));
-
       if (widget.isRegistrationMode) {
-        await _showNameDialog(embedding, imagePath);
+        await _showNameDialog(embedding);
       } else {
-        // Mode login : cherche dans TOUS les patients (pas seulement l'utilisateur courant)
-        final result = await FaceRecognitionService.recognizeFaceForLogin(embedding);
+        final result = await FaceRecognitionService.recognizeFace(embedding);
 
         if (result != null) {
           _showRecognitionResult(result);
         } else {
-          _showError("Visage non reconnu. Assurez-vous d'avoir enregistré votre visage.");
+          _showError("Visage inconnu");
         }
       }
     } catch (e) {
@@ -267,56 +255,49 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     setState(() => _isProcessing = false);
   }
 
-  Future<void> _showNameDialog(List<double> embedding, String imagePath) async {
+  Future<void> _showNameDialog(List<double> embedding) async {
     final nameController = TextEditingController();
     final relationController = TextEditingController();
     final phoneController = TextEditingController();
-
-    if (widget.isSelfRegistration) {
-      nameController.text = "Moi";
-    }
 
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(widget.isSelfRegistration ? "Enregistrer votre visage" : "Enregistrer ce visage"),
+        title: const Text("Enregistrer ce visage"),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: InputDecoration(
-                  labelText: widget.isSelfRegistration ? "Votre nom" : "Nom du proche",
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.person),
+                decoration: const InputDecoration(
+                  labelText: "Nom du proche",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
                 ),
                 autofocus: true,
-                enabled: !widget.isSelfRegistration,
               ),
-              if (!widget.isSelfRegistration) ...[
-                const SizedBox(height: 12),
-                TextField(
-                  controller: relationController,
-                  decoration: const InputDecoration(
-                    labelText: "Relation",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.family_restroom),
-                  ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: relationController,
+                decoration: const InputDecoration(
+                  labelText: "Relation",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.family_restroom),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: "Telephone",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(
+                  labelText: "Telephone",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.phone),
                 ),
-              ],
+                keyboardType: TextInputType.phone,
+              ),
             ],
           ),
         ),
@@ -331,19 +312,11 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                 return;
               }
 
-              final faceId = DateTime.now().millisecondsSinceEpoch.toString();
-              final imageUrl = await FaceImageService.saveFaceImage(
-                imagePath: imagePath,
-                patientUid: '', 
-                faceId: faceId,
-              );
-
               final success = await FaceRecognitionService.saveFace(
                 name: nameController.text.trim(),
                 embedding: embedding,
-                relation: widget.isSelfRegistration ? 'self' : relationController.text.trim(),
-                phoneNumber: widget.isSelfRegistration ? '' : phoneController.text.trim(),
-                imageUrl: imageUrl,
+                relation: relationController.text.trim(),
+                phoneNumber: phoneController.text.trim(),
               );
 
               Navigator.pop(ctx, success);
@@ -351,8 +324,9 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4A90E2),
             ),
-            child: Text(widget.isSelfRegistration ? "Confirmer" : "Enregistrer",
-                style: const TextStyle(color: Colors.white)),
+            child: const Text(
+                "Enregistrer",
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -360,12 +334,12 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
 
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.isSelfRegistration ? "Votre visage a été enregistré" : "Visage enregistré"),
+        const SnackBar(
+          content: Text("Visage enregistre"),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context, true);
+      Navigator.pop(context);
     }
   }
 
@@ -398,11 +372,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.pop(context, {
-                'recognized': true,
-                'name': result['name'],
-                'uid': result['uid'],  // Transmet l'uid pour que face_login_screen connecte le bon patient
-              });
+              Navigator.pop(context);
             },
             child: const Text("OK"),
           ),
@@ -416,7 +386,6 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
-    Navigator.pop(context, {'recognized': false});
   }
 
   @override
