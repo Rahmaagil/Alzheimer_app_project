@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'theme.dart';
+import 'fcm_service.dart';
 
 class LostPatientScreen extends StatefulWidget {
   const LostPatientScreen({super.key});
@@ -88,25 +89,26 @@ class _LostPatientScreenState extends State<LostPatientScreen> {
         userDoc.data()?['linkedCaregivers'] ?? [],
       );
 
-      final patientName = userDoc.data()?['name'] ?? 'Patient';
-
-      for (final caregiverId in linkedCaregivers) {
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'caregiverId': caregiverId,
-          'patientId': user.uid,
-          'patientName': patientName,
-          'type': 'lost',
-          'title': 'Patient perdu',
-          'message': 'Le patient a signalé être perdu',
-          'timestamp': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'isRead': false,
+      if (linkedCaregivers.isEmpty) {
+        setState(() {
+          _errorMessage = 'Aucun proche lié';
+          _isSending = false;
         });
+        return;
       }
 
-      debugPrint('[LostPatient] Alerte envoyée à ${linkedCaregivers.length} proche(s)');
+      await FCMService.sendNotificationToCaregiver(
+        patientUid: user.uid,
+        title: 'Patient perdu',
+        body: 'Le patient a signalé être perdu',
+        type: 'lost',
+        data: {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        },
+      );
+
+      debugPrint('[LostPatient] Alerte envoyée via FCM');
 
       setState(() {
         _sent = true;

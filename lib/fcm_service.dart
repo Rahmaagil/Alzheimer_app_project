@@ -460,6 +460,110 @@ class FCMService {
     );
   }
 
+  static Future<void> sendReminderToPatient({
+    required String patientUid,
+    required String title,
+    required DateTime scheduledTime,
+  }) async {
+    try {
+      final patientDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(patientUid)
+          .get();
+
+      final fcmToken = patientDoc.data()?['fcmToken'] as String?;
+
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .add({
+        'recipientId': patientUid,
+        'type': 'reminder',
+        'title': 'Rappel',
+        'message': title,
+        'scheduledTime': Timestamp.fromDate(scheduledTime),
+        'isRead': false,
+        'deliveredAt': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'to': fcmToken,
+        'notification': {
+          'title': 'Rappel',
+          'body': title,
+        },
+        'data': {
+          'type': 'reminder',
+          'patientUid': patientUid,
+          'scheduledTime': scheduledTime.toIso8601String(),
+        },
+        'priority': 'high',
+      });
+
+      debugPrint('[FCM] Rappel envoye au patient: $patientUid');
+    } catch (e) {
+      debugPrint('[FCM] Erreur envoi rappel patient: $e');
+    }
+  }
+
+  static Future<void> sendReminderToCaregiver({
+    required String patientUid,
+    required String reminderTitle,
+    required DateTime scheduledTime,
+  }) async {
+    try {
+      final patientDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(patientUid)
+          .get();
+
+      final patientName = patientDoc.data()?['name'] as String? ?? 'Patient';
+
+      final linkedCaregivers = List<String>.from(
+          patientDoc.data()?['linkedCaregivers'] ?? []
+      );
+
+      if (linkedCaregivers.isEmpty) return;
+
+      for (final caregiverUid in linkedCaregivers) {
+        final caregiverDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(caregiverUid)
+            .get();
+
+        final fcmToken = caregiverDoc.data()?['fcmToken'] as String?;
+
+        await FirebaseFirestore.instance
+            .collection('notifications')
+            .add({
+          'caregiverId': caregiverUid,
+          'patientId': patientUid,
+          'patientName': patientName,
+          'type': 'reminder',
+          'title': 'Rappel pour $patientName',
+          'message': '$reminderTitle a ${scheduledTime.hour.toString().padLeft(2, '0')}:${scheduledTime.minute.toString().padLeft(2, '0')}',
+          'isRead': false,
+          'status': 'pending',
+          'deliveredAt': FieldValue.serverTimestamp(),
+          'timestamp': FieldValue.serverTimestamp(),
+          'to': fcmToken,
+          'notification': {
+            'title': 'Rappel pour $patientName',
+            'body': '$reminderTitle a ${scheduledTime.hour.toString().padLeft(2, '0')}:${scheduledTime.minute.toString().padLeft(2, '0')}',
+          },
+          'data': {
+            'type': 'reminder',
+            'patientUid': patientUid,
+            'reminderTitle': reminderTitle,
+            'scheduledTime': scheduledTime.toIso8601String(),
+          },
+          'priority': 'high',
+        });
+      }
+
+      debugPrint('[FCM] Rappel envoye a ${linkedCaregivers.length} caregiver(s)');
+    } catch (e) {
+      debugPrint('[FCM] Erreur envoi rappel caregiver: $e');
+    }
+  }
+
   static Future<void> showGeofenceAlert({required int distance}) async {
     await _localNotifications.show(
       1,

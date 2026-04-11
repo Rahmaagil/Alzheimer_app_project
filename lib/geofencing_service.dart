@@ -286,31 +286,15 @@ Future<void> _createAlert(String uid, Position position, double distance, Map<St
       return;
     }
 
-    // ENVOYER NOTIFICATION A TOUS LES SUIVEURS
-    final patientDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    final patientName = patientDoc.data()?['name'] ?? 'Patient';
+    // ENVOYER NOTIFICATION VIA FCM
+    await FCMService.sendGeofenceAlert(
+      patientUid: uid,
+      distance: distance.toInt(),
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
 
-    for (final caregiverId in linkedCaregivers) {
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'caregiverId': caregiverId,
-        'patientId': uid,
-        'patientName': patientName,
-        'type': 'geofence',
-        'title': 'Alerte de zone',
-        'message': 'Le patient est sorti de sa zone de securite (${distance.toInt()}m)',
-        'timestamp': FieldValue.serverTimestamp(),
-        'status': 'pending',
-        'distance': distance.toInt(),
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'isRead': false,
-      });
-    }
-
-    debugPrint("[Geofencing] Notification envoyee a ${linkedCaregivers.length} proche(s)");
+    debugPrint("[Geofencing] Notification envoyee via FCM");
 
   } catch (e) {
     debugPrint("[Geofencing] Erreur creation alerte: $e");

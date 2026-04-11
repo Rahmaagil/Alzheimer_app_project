@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'reminder_notification_service.dart';
+import 'fcm_service.dart';
+import 'add_reminder_screen.dart';
 
 class RemindersCalendarScreen extends StatefulWidget {
   const RemindersCalendarScreen({super.key});
@@ -71,226 +72,11 @@ class _RemindersCalendarScreenState extends State<RemindersCalendarScreen> {
   }
 
   Future<void> _addReminder() async {
-    final titleController = TextEditingController();
-    TimeOfDay selectedTime = TimeOfDay.now();
-    DateTime selectedDate = _selectedDay ?? DateTime.now();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFFF0F7FF),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24)),
-              title: const Text(
-                'Nouveau rappel',
-                style: TextStyle(
-                  color: Color(0xFF2E5AAC),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 18),
-                    decoration: InputDecoration(
-                      labelText: 'Quoi ?',
-                      labelStyle: const TextStyle(fontSize: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              initialDate: selectedDate,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
-                            );
-                            if (date != null) {
-                              setDialogState(() => selectedDate = date);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.calendar_today, color: Color(0xFF4A90E2), size: 28),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "${selectedDate.day}/${selectedDate.month}",
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            final time = await showTimePicker(
-                              context: context,
-                              initialTime: selectedTime,
-                            );
-                            if (time != null) {
-                              setDialogState(() => selectedTime = time);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.access_time, color: Color(0xFF4A90E2), size: 28),
-                                const SizedBox(height: 8),
-                                Text(
-                                  selectedTime.format(context),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E5AAC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text("Annuler", style: TextStyle(fontSize: 16)),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6EC6FF), Color(0xFF4A90E2)],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TextButton(
-                    onPressed: () async {
-                      final title = titleController.text.trim();
-                      if (title.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Entrez un titre")),
-                        );
-                        return;
-                      }
-
-                      final user = FirebaseAuth.instance.currentUser;
-                      if (user == null) return;
-
-                      final reminderDateTime = DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        selectedTime.hour,
-                        selectedTime.minute,
-                      );
-
-                      try {
-                        final docRef = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user.uid)
-                            .collection('reminders')
-                            .add({
-                          'title': title,
-                          'date': Timestamp.fromDate(reminderDateTime),
-                          'done': false,
-                          'createdAt': FieldValue.serverTimestamp(),
-                        });
-
-                        await ReminderNotificationService.scheduleReminder(
-                          reminderId: docRef.id,
-                          title: title,
-                          scheduledTime: reminderDateTime,
-                        );
-
-                        Navigator.pop(dialogContext);
-                        await Future.delayed(const Duration(milliseconds: 300));
-                        _loadReminders();
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Row(
-                                children: [
-                                  Icon(Icons.check_circle, color: Colors.white),
-                                  SizedBox(width: 12),
-                                  Text("Rappel ajouté"),
-                                ],
-                              ),
-                              backgroundColor: const Color(0xFF66BB6A),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(Icons.error_outline, color: Colors.white),
-                                  const SizedBox(width: 12),
-                                  Text("Erreur: $e"),
-                                ],
-                              ),
-                              backgroundColor: const Color(0xFFFF5F6D),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text(
-                      "Ajouter",
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddReminderScreen()),
     );
+    _loadReminders();
   }
 
   Future<void> _toggleDone(String docId, bool currentDone) async {
@@ -305,7 +91,6 @@ class _RemindersCalendarScreenState extends State<RemindersCalendarScreen> {
           .doc(docId)
           .update({'done': !currentDone});
 
-      await ReminderNotificationService.cancelReminder(docId);
       _loadReminders();
     } catch (e) {
       debugPrint("Erreur: $e");

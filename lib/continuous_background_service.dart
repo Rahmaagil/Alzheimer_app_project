@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'fcm_service.dart';
 
 class ContinuousBackgroundService {
   static Timer? _positionTimer;
@@ -200,34 +201,14 @@ class ContinuousBackgroundService {
         'createdBy': 'continuous_bg',
       });
 
-      final patientDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final patientName = patientDoc.data()?['name'] ?? 'Patient';
-
-      final linkedCaregivers = List<String>.from(
-        userData['linkedCaregivers'] ?? [],
+      await FCMService.sendGeofenceAlert(
+        patientUid: uid,
+        distance: distance.toInt(),
+        latitude: position.latitude,
+        longitude: position.longitude,
       );
 
-      for (final caregiverId in linkedCaregivers) {
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'caregiverId': caregiverId,
-          'patientId': uid,
-          'patientName': patientName,
-          'type': 'geofence',
-          'title': 'Alerte de zone',
-          'message': 'Le patient est sorti de sa zone de sécurité (${distance.toInt()}m)',
-          'timestamp': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'distance': distance.toInt(),
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'isRead': false,
-        });
-      }
-
-      debugPrint('[ContinuousBgService] Alerte géofence envoyée');
+      debugPrint('[ContinuousBgService] Alerte géofence envoyée via FCM');
     } catch (e) {
       debugPrint('[ContinuousBgService] Erreur alerte géofence: $e');
     }

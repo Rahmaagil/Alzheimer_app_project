@@ -102,7 +102,6 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> with WidgetsBindi
           .doc(user.uid)
           .get();
 
-
       final linkedCaregivers = List<String>.from(
           userDoc.data()?['linkedCaregivers'] ?? []
       );
@@ -119,7 +118,6 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> with WidgetsBindi
         return;
       }
 
-      // Récupérer position GPS
       GeoPoint? location;
       final locationDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -133,21 +131,11 @@ class _PatientHomeScreenState extends State<PatientHomeScreen> with WidgetsBindi
         location = locationDoc.docs.first.data()['location'] as GeoPoint?;
       }
 
-      // ENVOYER A TOUS LES SUIVEURS
-      for (final caregiverId in linkedCaregivers) {
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'caregiverId': caregiverId,
-          'patientId': user.uid,
-          'type': 'sos',
-          'title': 'SOS',
-          'message': 'Le patient a déclenché une alerte SOS',
-          'location': location,
-          'timestamp': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'latitude': location?.latitude,
-          'longitude': location?.longitude,
-        });
-      }
+      await FCMService.sendSOSAlert(
+        patientUid: user.uid,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

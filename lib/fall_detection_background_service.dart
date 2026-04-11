@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'fall_detection_service.dart';
+import 'fcm_service.dart';
 import 'package:alzhecare/main.dart' show navigatorKey;
 
 class FallDetectionBackgroundService {
@@ -173,26 +174,17 @@ class FallDetectionBackgroundService {
         debugPrint('[BgFallDetection] Erreur position: $e');
       }
 
-      for (final caregiverId in linkedCaregivers) {
-        try {
-          await FirebaseFirestore.instance.collection('notifications').add({
-            'caregiverId': caregiverId,
-            'patientId': user.uid,
-            'type': 'fall',
-            'title': 'Alerte Chute Detectee',
-            'message': 'Chute detectee avec ${(confidence * 100).toStringAsFixed(0)}% de confiance',
-            'location': location,
-            'timestamp': FieldValue.serverTimestamp(),
-            'status': 'pending',
-            'confidence': confidence,
-            'confirmed': 'patient',
-            'latitude': latitude,
-            'longitude': longitude,
-          });
-          debugPrint('[BgFallDetection] Notification envoyee a $caregiverId');
-        } catch (e) {
-          debugPrint('[BgFallDetection] Erreur envoi notification: $e');
-        }
+      try {
+        debugPrint('[BgFallDetection] Envoi notification chute via FCM');
+
+        await FCMService.sendFallAlert(
+          patientUid: user.uid,
+          latitude: latitude,
+          longitude: longitude,
+        );
+        debugPrint('[BgFallDetection] Notification chute envoyee');
+      } catch (e) {
+        debugPrint('[BgFallDetection] Erreur envoi notification: $e');
       }
     } catch (e) {
       debugPrint('[BgFallDetection] Erreur generale: $e');

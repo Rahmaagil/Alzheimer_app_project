@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'reminder_notification_service.dart';
+import 'fcm_service.dart';
 
 class CaregiverRemindersCalendarScreen extends StatefulWidget {
   final String patientUid;
@@ -230,9 +230,9 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
                           'createdBy': 'caregiver',
                         });
 
-                        await ReminderNotificationService.scheduleReminder(
-                          reminderId: docRef.id,
-                          title: title,
+                        await FCMService.sendReminderToCaregiver(
+                          patientUid: widget.patientUid,
+                          reminderTitle: title,
                           scheduledTime: reminderDateTime,
                         );
 
@@ -311,7 +311,6 @@ class _CaregiverRemindersCalendarScreenState extends State<CaregiverRemindersCal
           .doc(docId)
           .delete();
 
-      await ReminderNotificationService.cancelReminder(docId);
       await _loadData();
 
       if (mounted) {
