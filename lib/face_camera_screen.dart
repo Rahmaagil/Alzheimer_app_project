@@ -7,10 +7,14 @@ import 'face_recognition_service.dart';
 
 class FaceCameraScreen extends StatefulWidget {
   final bool isRegistrationMode;
+  final bool isLoginMode;            // Mode: connexion par visage (cherche dans face_logins)
+  final bool isSelfFaceRegistration; // Mode: enregistrer son propre visage pour la connexion
 
   const FaceCameraScreen({
     super.key,
     this.isRegistrationMode = false,
+    this.isLoginMode = false,
+    this.isSelfFaceRegistration = false,
   });
 
   @override
@@ -102,6 +106,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             }
           }
         } catch (e) {
+          // Erreur silencieuse
         } finally {
           _isDetecting = false;
         }
@@ -149,7 +154,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     try {
       final width = image.width;
       final height = image.height;
-      final imgImage = img.Image(width, height);
+      final imgImage = img.Image(width, height); // conservé tel quel (fonctionne)
 
       final yPlane = image.planes[0].bytes;
       final uPlane = image.planes[1].bytes;
@@ -237,8 +242,35 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         return;
       }
 
+      // --- Mode enregistrement d'un proche (comportement original) ---
       if (widget.isRegistrationMode) {
         await _showNameDialog(embedding);
+
+      // --- Mode connexion par visage (nouveau) ---
+      } else if (widget.isLoginMode) {
+        final uid = await FaceRecognitionService.recognizeFaceForLogin(embedding);
+        if (uid != null) {
+          if (mounted) Navigator.pop(context, {'recognized': true, 'uid': uid});
+        } else {
+          _showError('Visage non reconnu. Veuillez réessayer.');
+        }
+
+      // --- Mode enregistrement du propre visage pour login (nouveau) ---
+      } else if (widget.isSelfFaceRegistration) {
+        final success = await FaceRecognitionService.saveSelfFaceEmbedding(embedding);
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Visage enregistré pour la connexion'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true);
+        } else {
+          _showError("Erreur lors de l'enregistrement du visage");
+        }
+
+      // --- Mode reconnaissance d'un proche (comportement original) ---
       } else {
         final result = await FaceRecognitionService.recognizeFace(embedding);
 
@@ -324,8 +356,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4A90E2),
             ),
-            child: const Text(
-                "Enregistrer",
+            child: const Text("Enregistrer",
                 style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -479,9 +510,11 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                     strokeWidth: 2,
                   )
                       : Icon(
-                    widget.isRegistrationMode
+                    widget.isRegistrationMode || widget.isSelfFaceRegistration
                         ? Icons.person_add
-                        : Icons.face,
+                        : widget.isLoginMode
+                            ? Icons.lock_open
+                            : Icons.face,
                     color: Colors.white,
                     size: 40,
                   ),

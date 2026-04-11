@@ -165,7 +165,7 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
       final result = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
-          builder: (_) => const FaceCameraScreen(isRegistrationMode: false),
+          builder: (_) => const FaceCameraScreen(isLoginMode: true),
         ),
       );
 
@@ -237,6 +237,24 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
         _error = 'Erreur de connexion: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _registerSelfFace() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FaceCameraScreen(isSelfFaceRegistration: true),
+      ),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Visage enregistré ! Vous pouvez maintenant vous connecter par visage.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 

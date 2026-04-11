@@ -41,7 +41,8 @@ class FaceRecognitionService {
             112,
                 (x) {
               final pixel = resized.getPixel(x, y);
-              
+
+              // Extraction RGB compatible image 3.3.0
               final red = pixel.toInt() & 0xFF;
               final green = (pixel.toInt() >> 8) & 0xFF;
               final blue = (pixel.toInt() >> 16) & 0xFF;
@@ -83,6 +84,8 @@ class FaceRecognitionService {
 
     return similarity;
   }
+
+  // ─── Proches ───────────────────────────────────────────────────────────────
 
   static Future<bool> saveFace({
     required String name,
@@ -214,6 +217,73 @@ class FaceRecognitionService {
     } catch (e) {
       print("[FaceRecognition] Erreur suppression: $e");
       return false;
+    }
+  }
+
+  // ─── Login par visage ───────────────────────────────────────────────────────
+
+  /// Enregistre le propre visage du patient dans la collection globale `face_logins`
+  static Future<bool> saveSelfFaceEmbedding(List<double> embedding) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      await FirebaseFirestore.instance
+          .collection('face_logins')
+          .doc(user.uid)
+          .set({
+        'uid': user.uid,
+        'embedding': embedding,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('[FaceRecognition] Visage de connexion enregistré: ${user.uid}');
+      return true;
+    } catch (e) {
+      print('[FaceRecognition] Erreur enregistrement visage connexion: $e');
+      return false;
+    }
+  }
+
+  /// Identifie un patient pour la connexion en cherchant dans tous les visages de `face_logins`
+  /// Pas besoin d'être authentifié pour appeler cette méthode.
+  static Future<String?> recognizeFaceForLogin(List<double> embedding) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('face_logins')
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        print('[FaceRecognition] Aucun visage de connexion enregistré');
+        return null;
+      }
+
+      double bestSimilarity = 0.0;
+      String? bestUid;
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final saved = List<double>.from(data['embedding'] ?? []);
+        final similarity = calculateSimilarity(embedding, saved);
+
+        print('[FaceRecognition] Vérification login ${doc.id}: $similarity');
+
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+          bestUid = data['uid'] as String?;
+        }
+      }
+
+      if (bestSimilarity > 0.6) {
+        print('[FaceRecognition] Login reconnu: $bestUid (score: $bestSimilarity)');
+        return bestUid;
+      }
+
+      print('[FaceRecognition] Aucune correspondance login (meilleur: $bestSimilarity)');
+      return null;
+    } catch (e) {
+      print('[FaceRecognition] Erreur reconnaissance login: $e');
+      return null;
     }
   }
 }
